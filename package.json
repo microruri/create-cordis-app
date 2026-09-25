@@ -1,0 +1,29 @@
+{
+  "name": "@cca/root",
+  "version": "0.0.0",
+  "description": "Scaffold Cordis applications with TypeScript.",
+  "author": "microruri",
+  "maintainers": [
+    "microruri"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/microruri/create-cordis-app.git"
+  },
+  "keywords": [
+    "cordis",
+    "typescript"
+  ],
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter create-cordis-app build",
+    "dev": "pnpm --filter create-cordis-app dev",
+    "start": "pnpm --filter create-cordis-app start",
+    "lint": "pnpm --filter create-cordis-app lint",
+    "typecheck": "pnpm --filter create-cordis-app typecheck"
+  }
+}
