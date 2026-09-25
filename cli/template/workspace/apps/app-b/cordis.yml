@@ -1,0 +1,19 @@
+- id: env
+  name: "@cordisjs/plugin-env"
+- id: logger
+  name: "@cordisjs/plugin-logger-console"
+- id: application
+  name: "@cordisjs/plugin-group"
+  group: true
+  inject: [env]
+  config:
+    - id: server
+      name: "@cordisjs/plugin-server"
+      config:
+        host: !!js env.HOST ?? '127.0.0.1'
+        port: !!js Number(env.PORT ?? 3082)
+    - id: hello
+      name: "@acme/plugin-hello-b"
+      config:
+        app: app-b
+        greeting: !!js env.GREETING ?? 'Hello from app-b!'

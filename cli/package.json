@@ -6,7 +6,8 @@
     "create-cordis-app": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "template"
   ],
   "engines": {
     "node": ">=22.12.0"
@@ -15,8 +16,9 @@
     "build": "rolldown src/index.ts --file dist/index.js --format esm --platform node",
     "dev": "pnpm run build --watch",
     "start": "node dist/index.js",
-    "lint": "oxlint src --deny-warnings",
-    "typecheck": "tsc --noEmit"
+    "lint": "oxlint src tests --deny-warnings",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tests/tsconfig.json",
+    "test": "node --expose-internals --conditions=development --test \"tests/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
