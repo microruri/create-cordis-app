@@ -1,0 +1,9 @@
+{
+  "plugins": ["typescript", "react", "react-hooks"],
+  "rules": {
+    "react/only-export-components": "warn",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn"
+  },
+  "ignorePatterns": ["**/dist/**", "**/node_modules/**"]
+}

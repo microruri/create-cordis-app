@@ -1,0 +1,24 @@
+pre-commit:
+  piped: true
+  jobs:
+    - name: lint
+      glob: "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"
+      run: pnpm exec oxlint --fix --deny-warnings --no-error-on-unmatched-pattern '{staged_files}'
+      stage_fixed: true
+
+    - name: format
+      glob: "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json,jsonc,yaml,yml,md,mdx,html,css,scss}"
+      exclude:
+        - "pnpm-lock.yaml"
+        - "**/pnpm-lock.yaml"
+      # Stage before checking the cached diff; stage_fixed preserves partial staging.
+      run: pnpm exec oxfmt --write --no-error-on-unmatched-pattern '{staged_files}' && git add -- '{staged_files}'
+      stage_fixed: true
+
+    - name: whitespace
+      run: git diff --cached --check
+
+pre-push:
+  jobs:
+    - name: typecheck
+      run: pnpm typecheck

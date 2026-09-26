@@ -38,6 +38,13 @@ async function main() {
     },
   });
 
+  const templateRoot = fileURLToPath(new URL("./template/", import.meta.url));
+  const templates = (await readdir(templateRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  if (!templates.length) throw new Error("No templates found. Rebuild the CLI.");
+
   if (values.help) {
     console.log(`Usage: create-cordis-app [project-name] [--template <name>]
 
@@ -45,7 +52,7 @@ Create a project in a new directory under the current working directory.
 Omitted values are requested interactively.
 
 Options:
-  -t, --template <name>  Choose a bundled template (currently: workspace)
+  -t, --template <name>  Choose a bundled template (${templates.join(", ")})
   -h, --help             Show this help
 
 Example:
@@ -61,12 +68,6 @@ Example:
     if (error) throw new Error(error);
   }
 
-  const templateRoot = fileURLToPath(new URL("./template/", import.meta.url));
-  const templates = (await readdir(templateRoot, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-  if (!templates.length) throw new Error("No templates found. Rebuild the CLI.");
   if (template !== undefined && !templates.includes(template)) {
     throw new Error(`Unknown template: ${template}. Available templates: ${templates.join(", ")}.`);
   }
@@ -74,7 +75,7 @@ Example:
   const interactive = process.stdin.isTTY && process.stdout.isTTY;
   if ((!projectName || !template) && !interactive) {
     throw new Error(
-      "An interactive terminal is required. Alternatively, provide a project name and --template workspace.",
+      `An interactive terminal is required. Alternatively, provide a project name and --template <name>. Available templates: ${templates.join(", ")}.`,
     );
   }
   if (interactive) prompts.intro("create-cordis-app");

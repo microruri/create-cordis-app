@@ -8,7 +8,6 @@ import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const cli = fileURLToPath(new URL("../dist/index.js", import.meta.url));
-const template = fileURLToPath(new URL("../template/workspace/", import.meta.url));
 
 async function fixture(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "cca-cli-with spaces-"));
@@ -32,50 +31,61 @@ function run(directory: string, args: string[]) {
   return result;
 }
 
-test("CLI creates a complete workspace without installing dependencies or initializing Git", async (t) => {
-  const directory = await fixture(t);
-  const result = run(directory, ["my-app", "--template", "workspace"]);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /Created my-app using workspace/);
-  assert.match(result.stdout, /cd my-app/);
+for (const name of ["workspace", "fullstack"]) {
+  test(`CLI creates ${name} without installing dependencies or initializing Git`, async (t) => {
+    const template = fileURLToPath(new URL(`../template/${name}/`, import.meta.url));
+    const directory = await fixture(t);
+    const result = run(directory, ["my-app", "--template", name]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(result.stdout.includes(`Created my-app using ${name}`));
+    assert.match(result.stdout, /cd my-app/);
 
-  const project = join(directory, "my-app");
-  for (const file of [
-    ".gitignore",
-    ".gitattributes",
-    ".oxfmtrc.json",
-    "package.json",
-    "README.md",
-    "lefthook.yml",
-    "pnpm-workspace.yaml",
-    "apps/app-a/.env.example",
-    "apps/app-b/.env.example",
-    "apps/app-a/cordis.yml",
-    "apps/app-b/cordis.dev.yml",
-    "packages/plugin-hello-a/src/index.ts",
-    "packages/plugin-hello-b/src/index.ts",
-    "scripts/install-lefthook.mjs",
-  ]) {
-    assert.deepEqual(
-      await readFile(join(project, file)),
-      await readFile(join(template, file)),
-      file,
-    );
-  }
+    const project = join(directory, "my-app");
+    for (const file of [
+      ".gitignore",
+      ".gitattributes",
+      ".oxfmtrc.json",
+      "package.json",
+      "README.md",
+      "lefthook.yml",
+      "pnpm-workspace.yaml",
+      "apps/app-a/.env.example",
+      "apps/app-b/.env.example",
+      "apps/app-a/cordis.yml",
+      "apps/app-b/cordis.dev.yml",
+      ...(name === "workspace"
+        ? ["packages/plugin-hello-a/src/index.ts", "packages/plugin-hello-b/src/index.ts"]
+        : [
+            "packages/plugin-web/client/main.tsx",
+            "packages/plugin-web/bin/cordis-web.mjs",
+            "packages/plugin-rpc/src/index.ts",
+            "packages/plugin-web/src/index.ts",
+            "packages/plugin-hello-a/src/server/index.ts",
+            "packages/plugin-hello-b/src/client/page.tsx",
+          ]),
+      "scripts/install-lefthook.mjs",
+    ]) {
+      assert.deepEqual(
+        await readFile(join(project, file)),
+        await readFile(join(template, file)),
+        file,
+      );
+    }
 
-  for (const path of await readdir(project, { recursive: true })) {
-    assert(
-      !/(^|[/\\])(node_modules|dist|\.git|\.turbo|\.cordis|_gitignore)([/\\]|$)/.test(path),
-      path,
+    for (const path of await readdir(project, { recursive: true })) {
+      assert(
+        !/(^|[/\\])(node_modules|dist|\.git|\.turbo|\.cordis|_gitignore)([/\\]|$)/.test(path),
+        path,
+      );
+      assert(!basename(path).startsWith("pnpm-lock"), path);
+      assert(!basename(path).startsWith(".env") || basename(path) === ".env.example", path);
+    }
+    assert.equal(
+      JSON.parse(await readFile(join(project, "package.json"), "utf8")).name,
+      "@acme/root",
     );
-    assert(!basename(path).startsWith("pnpm-lock"), path);
-    assert(!basename(path).startsWith(".env") || basename(path) === ".env.example", path);
-  }
-  assert.equal(
-    JSON.parse(await readFile(join(project, "package.json"), "utf8")).name,
-    "@acme/root",
-  );
-});
+  });
+}
 
 test("CLI refuses existing directories and files without changing their contents", async (t) => {
   const directory = await fixture(t);
@@ -132,6 +142,7 @@ test("CLI help works without a terminal and missing input fails promptly", async
   const help = run(directory, ["--help"]);
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /Usage: create-cordis-app/);
+  assert.match(help.stdout, /fullstack, workspace/);
   for (const args of [[], ["my-app"], ["--template", "workspace"]]) {
     const result = run(directory, args);
     assert.equal(result.status, 1);

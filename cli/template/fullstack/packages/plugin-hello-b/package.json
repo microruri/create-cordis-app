@@ -1,0 +1,32 @@
+{
+  "name": "@acme/plugin-hello-b",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "rolldown -c ../../rolldown.config.ts --configLoader native"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/server/index.ts",
+      "development": "./src/server/index.ts",
+      "default": "./dist/server/index.js"
+    },
+    "./router": {
+      "types": "./src/server/router.ts"
+    },
+    "./web": "./src/client/index.ts"
+  },
+  "dependencies": {
+    "@acme/plugin-rpc": "workspace:*",
+    "@trpc/server": "11.19.0",
+    "cordis": "4.0.0-rc.10",
+    "zod": "4.6.5"
+  },
+  "private": true,
+  "devDependencies": {
+    "@tanstack/react-query": "5.103.2",
+    "react": "19.3.0",
+    "@types/react": "19.3.0",
+    "@acme/plugin-web": "workspace:*"
+  }
+}
