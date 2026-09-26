@@ -39,13 +39,20 @@ pnpm dev
 
 ## Templates
 
-| Template                                        | Includes                                                                                                            | Requirements                        |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| [workspace](./cli/template/workspace/README.md) | Two independent Cordis apps, YAML configuration, shared runtime, plugin HMR, and build tooling                      | Node.js >=24.12.0 <25; pnpm 11.24.0 |
-| [fullstack](./cli/template/fullstack/README.md) | Two independent fullstack Cordis apps, plugin-owned React pages and cards, typed tRPC APIs, and integrated Vite HMR | Node.js >=24.12.0 <25; pnpm 11.24.0 |
+| Template                                                | Includes                                                                                                            | Requirements                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| [workspace](./cli/template/workspace/README.md)         | Two independent Cordis apps, YAML configuration, shared runtime, plugin HMR, and build tooling                      | Node.js >=24.12.0 <25; pnpm 11.24.0 |
+| [fullstack](./cli/template/fullstack/README.md)         | Two independent fullstack Cordis apps, plugin-owned React pages and cards, typed tRPC APIs, and integrated Vite HMR | Node.js >=24.12.0 <25; pnpm 11.24.0 |
+| [fullstack-ssr](./cli/template/fullstack-ssr/README.md) | Two independent Cordis apps with Vike SSR, plugin-owned React pages, typed server callers, and HTTP tRPC            | Node.js >=24.12.0 <25; pnpm 11.24.0 |
 
-The project name determines the output directory. Both templates keep
-`@acme` as its package scope; replace it with your own scope when needed.
+To create the SSR template from this checkout:
+
+```sh
+node cli/dist/index.js my-app --template fullstack-ssr
+```
+
+The project name determines the output directory. All templates keep
+`@acme` as their package scope; replace it with your own scope when needed.
 
 Generated projects include source files, configuration, documentation, and example
 environment files. Installed dependencies, build outputs, caches, local environment
@@ -66,10 +73,11 @@ pnpm lint
 pnpm typecheck
 pnpm --dir cli/template/workspace install
 pnpm --dir cli/template/fullstack install
+pnpm --dir cli/template/fullstack-ssr install
 pnpm test
 ```
 
-Tests build the CLI, verify project creation, and exercise both templates.
+Tests build the CLI, verify project creation, and exercise all templates.
 See [the test guide](./cli/tests/README.md) for details. The CLI's published file
 list includes only build output and the package manifest.
 

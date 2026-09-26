@@ -1,0 +1,23 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "stream",
+  "remoteCache": {
+    "enabled": false
+  },
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/rolldown.config.ts",
+        "$TURBO_ROOT$/tsconfig.json",
+        "$TURBO_ROOT$/tsconfig.server.json",
+        "$TURBO_ROOT$/tsconfig.client.json",
+        ".env",
+        ".env.*"
+      ],
+      "outputs": ["dist/**"],
+      "env": ["VITE_*"]
+    }
+  }
+}

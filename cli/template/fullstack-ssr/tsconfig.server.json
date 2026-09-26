@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "apps/app-*/src",
+    "packages/*/src/index.ts",
+    "packages/*/src/server",
+    "packages/plugin-rpc/src/http.ts",
+    "rolldown.config.ts",
+    "packages/plugin-web/src"
+  ]
+}

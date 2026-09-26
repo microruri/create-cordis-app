@@ -31,7 +31,7 @@ function run(directory: string, args: string[]) {
   return result;
 }
 
-for (const name of ["workspace", "fullstack"]) {
+for (const name of ["workspace", "fullstack", "fullstack-ssr"]) {
   test(`CLI creates ${name} without installing dependencies or initializing Git`, async (t) => {
     const template = fileURLToPath(new URL(`../template/${name}/`, import.meta.url));
     const directory = await fixture(t);
@@ -53,16 +53,26 @@ for (const name of ["workspace", "fullstack"]) {
       "apps/app-b/.env.example",
       "apps/app-a/cordis.yml",
       "apps/app-b/cordis.dev.yml",
-      ...(name === "workspace"
-        ? ["packages/plugin-hello-a/src/index.ts", "packages/plugin-hello-b/src/index.ts"]
-        : [
-            "packages/plugin-web/client/main.tsx",
+      ...(name === "fullstack-ssr"
+        ? [
+            "packages/plugin-web/web/+config.ts",
+            "packages/plugin-web/web/+Wrapper.tsx",
             "packages/plugin-web/bin/cordis-web.mjs",
             "packages/plugin-rpc/src/index.ts",
-            "packages/plugin-web/src/index.ts",
-            "packages/plugin-hello-a/src/server/index.ts",
-            "packages/plugin-hello-b/src/client/page.tsx",
-          ]),
+            "packages/plugin-hello-a/src/web/hello-a/+data.ts",
+            "packages/plugin-hello-a/src/web/hello-a/Page.tsx",
+            "packages/plugin-hello-b/src/web/hello-b/+Page.tsx",
+          ]
+        : name === "workspace"
+          ? ["packages/plugin-hello-a/src/index.ts", "packages/plugin-hello-b/src/index.ts"]
+          : [
+              "packages/plugin-web/client/main.tsx",
+              "packages/plugin-web/bin/cordis-web.mjs",
+              "packages/plugin-rpc/src/index.ts",
+              "packages/plugin-web/src/index.ts",
+              "packages/plugin-hello-a/src/server/index.ts",
+              "packages/plugin-hello-b/src/client/page.tsx",
+            ]),
       "scripts/install-lefthook.mjs",
     ]) {
       assert.deepEqual(
@@ -142,7 +152,7 @@ test("CLI help works without a terminal and missing input fails promptly", async
   const help = run(directory, ["--help"]);
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /Usage: create-cordis-app/);
-  assert.match(help.stdout, /fullstack, workspace/);
+  assert.match(help.stdout, /fullstack, fullstack-ssr, workspace/);
   for (const args of [[], ["my-app"], ["--template", "workspace"]]) {
     const result = run(directory, args);
     assert.equal(result.status, 1);

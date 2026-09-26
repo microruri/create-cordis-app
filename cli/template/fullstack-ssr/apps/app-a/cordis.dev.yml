@@ -1,0 +1,18 @@
+- id: production
+  name: "@cordisjs/plugin-include"
+  config:
+    path: ./cordis.yml
+- id: timer
+  name: "@cordisjs/plugin-timer"
+- id: hmr
+  name: "@cordisjs/plugin-hmr"
+  config:
+    base: ../../
+    root: [packages]
+    # HMR matches native paths, so include POSIX and Windows separators.
+    ignored:
+      - "**/{node_modules,dist,web,plugin-web,runtime,plugin-rpc}{,/**}"
+      - '*\\{node_modules,dist,web,plugin-web,runtime,plugin-rpc}{,\\*}'
+      - "**/.*"
+      - '*\\.*'
+    debounce: 100

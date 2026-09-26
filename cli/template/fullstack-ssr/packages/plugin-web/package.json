@@ -1,0 +1,48 @@
+{
+  "name": "@acme/plugin-web",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "rolldown -c ../../rolldown.config.ts --configLoader native"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./build": {
+      "types": "./src/build.ts",
+      "development": "./src/build.ts",
+      "default": "./dist/build.js"
+    },
+    "./types": {
+      "types": "./src/types.ts"
+    },
+    "./web/*": "./web/*"
+  },
+  "bin": {
+    "cordis-web": "bin/cordis-web.mjs"
+  },
+  "dependencies": {
+    "@acme/plugin-rpc": "workspace:*",
+    "@cordisjs/plugin-server": "1.7.0",
+    "@cordisjs/plugin-loader": "1.0.0-rc.7",
+    "cordis": "4.0.0-rc.10",
+    "sirv": "3.0.2",
+    "js-yaml": "4.3.2",
+    "@tanstack/react-query": "5.103.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vike": "0.4.266",
+    "vike-react": "0.6.27"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "4.0.9",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "vite": "8.3.1"
+  }
+}

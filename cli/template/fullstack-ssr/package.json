@@ -1,0 +1,37 @@
+{
+  "name": "@acme/root",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=24.12.0 <25"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install-lefthook.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.client.json",
+    "build:app-a": "turbo run build --filter=@acme/app-a",
+    "build:app-b": "turbo run build --filter=@acme/app-b",
+    "build": "turbo run build --concurrency=1",
+    "start:app-a": "pnpm --filter @acme/app-a start",
+    "start:app-b": "pnpm --filter @acme/app-b start",
+    "start": "pnpm --parallel --filter \"./apps/*\" start",
+    "dev:app-a": "pnpm --filter @acme/app-a dev",
+    "dev:app-b": "pnpm --filter @acme/app-b dev",
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "clean": "node scripts/clean.mjs",
+    "lint": "oxlint apps packages scripts rolldown.config.ts --deny-warnings",
+    "lint:fix": "pnpm lint --fix",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "lefthook": "2.1.14",
+    "oxfmt": "0.70.0",
+    "oxlint": "^1.85.0",
+    "rolldown": "^1.2.9",
+    "turbo": "2.11.3",
+    "typescript": "^7.0.2"
+  }
+}
