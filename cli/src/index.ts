@@ -2,7 +2,7 @@
 
 import * as prompts from "@clack/prompts";
 import { constants } from "node:fs";
-import { copyFile, mkdir, readdir, rm } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -124,7 +124,9 @@ Example:
     throw error;
   }
 
-  const message = `Created ${projectName} using ${template}.\n\nNext steps:\n  cd ${projectName}\n  pnpm install\n  pnpm dev`;
+  const manifest = JSON.parse(await readFile(join(destination, "package.json"), "utf8"));
+  const databaseSetup = manifest.scripts?.["db:setup"] ? "\n  pnpm db:setup" : "";
+  const message = `Created ${projectName} using ${template}.\n\nNext steps:\n  cd ${projectName}\n  pnpm install${databaseSetup}\n  pnpm dev`;
   if (interactive) prompts.outro(message);
   else console.log(message);
 }

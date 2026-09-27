@@ -14,22 +14,19 @@
     "./router": {
       "types": "./src/server/router.ts"
     },
-    "./web": "./src/web/+config.ts",
-    "./web/*": "./src/web/*"
+    "./web": "./src/web/pages.ts"
   },
   "dependencies": {
     "@acme/plugin-rpc": "workspace:*",
-    "@trpc/server": "11.19.0",
-    "cordis": "4.0.0-rc.10",
+    "@trpc/server": "catalog:",
+    "cordis": "catalog:",
     "zod": "4.6.5"
   },
   "private": true,
   "devDependencies": {
-    "@tanstack/react-query": "5.103.2",
-    "react": "19.3.0",
-    "@types/react": "19.3.0",
-    "@acme/plugin-web": "workspace:*",
-    "vike": "0.4.266",
-    "vike-react": "0.6.27"
+    "@tanstack/react-query": "catalog:",
+    "react": "catalog:",
+    "@types/react": "catalog:",
+    "@acme/plugin-web": "workspace:*"
   }
 }

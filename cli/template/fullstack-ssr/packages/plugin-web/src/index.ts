@@ -7,12 +7,14 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream } from "node:stream/web";
 import type { Socket } from "node:net";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { renderPage } from "vike/server";
 import sirv from "sirv";
 import { discover } from "./discover.ts";
-import type { WebState } from "./types.ts";
+import type { ServerEntry, WebState } from "./types.ts";
 
 export const name = "@acme/plugin-web";
 export const inject = ["server", "loader", "rpc"];
@@ -29,13 +31,16 @@ type Middleware = (
 export async function apply(ctx: Context, config: Config) {
   const appRoot = fileURLToPath(new URL("./", ctx.baseUrl));
   let middleware: Middleware;
+  let entry: () => Promise<ServerEntry>;
   if (config.development) {
     const { development } = await import("./dev.ts");
-    middleware = await development(ctx, appRoot);
+    const dev = await development(ctx, appRoot);
+    middleware = dev.vite.middlewares;
+    entry = dev.entry;
   } else {
     const discovered = await discover(appRoot);
-    const entry = join(appRoot, "dist/web/server/entry.mjs");
-    if (!existsSync(entry)) throw new Error("Missing SSR build. Run pnpm build before pnpm start.");
+    const path = join(appRoot, "dist/web/rsc/index.js");
+    if (!existsSync(path)) throw new Error("Missing RSC build. Run pnpm build before pnpm start.");
     const built: string[] = JSON.parse(
       await readFile(join(appRoot, "dist/web-manifest.json"), "utf8"),
     );
@@ -44,7 +49,9 @@ export async function apply(ctx: Context, config: Config) {
       throw new Error(
         "Frontend plugins are not built: " + missing.map(({ name }) => name).join(", "),
       );
-    await import(pathToFileURL(entry).href);
+    const server: ServerEntry = await import(pathToFileURL(path).href);
+    server.validate();
+    entry = async () => server;
     middleware = sirv(join(appRoot, "dist/web/client"), {
       etag: true,
       setHeaders(response, pathname) {
@@ -75,50 +82,56 @@ export async function apply(ctx: Context, config: Config) {
       connections.add(socket);
       socket.once("close", () => connections.delete(socket));
     }
-    await new Promise<void>((resolve, reject) => {
-      const cleanup = () => {
+    let request: Request | undefined;
+    const render = async () => {
+      if (/\/(?:\.|assets(?:\/|$)|@)/.test(req.path)) {
+        res._res.statusCode = 404;
+        res._res.end();
+        return;
+      }
+      request = toRequest(ctx, req, res);
+      const response = await (await entry()).render({ cordis: ctx, request, web: snapshot() });
+      if (res._res.destroyed) {
+        await response.body?.cancel();
+        return;
+      }
+      res._res.statusCode = response.status;
+      for (const [key, value] of response.headers)
+        if (key !== "set-cookie") res._res.setHeader(key, value);
+      for (const cookie of response.headers.getSetCookie())
+        res._res.appendHeader("Set-Cookie", cookie);
+      if (!response.body || req.method === "HEAD") {
+        res._res.end();
+        await response.body?.cancel();
+        return;
+      }
+      await pipeline(Readable.fromWeb(response.body as ReadableStream<Uint8Array>), res._res, {
+        signal: request.signal,
+      });
+    };
+    const fail = (error: unknown) => {
+      if (request?.signal.aborted || res._res.destroyed) return;
+      ctx.logger.error(error);
+      if (res._res.headersSent) {
+        res._res.destroy();
+        return;
+      }
+      res._res.statusCode = 500;
+      res._res.setHeader("Cache-Control", "no-store");
+      res._res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res._res.end("Internal server error");
+    };
+    await new Promise<void>((resolve) => {
+      const finish = () => {
         res._res.off("finish", finish);
         res._res.off("close", finish);
-      };
-      const finish = () => {
-        cleanup();
         resolve();
       };
       res._res.once("finish", finish);
       res._res.once("close", finish);
       middleware(req._req, res._res, (error) => {
-        if (error) {
-          cleanup();
-          reject(error);
-          return;
-        }
-        void (async () => {
-          // Missing assets and dotfiles must not become HTML pages.
-          if (/\/(?:\.|assets\/)/.test(req.path)) {
-            res._res.statusCode = 404;
-            res._res.end();
-            return;
-          }
-          const request = toRequest(ctx, req, res);
-          const { httpResponse } = await renderPage({
-            urlOriginal: req.url,
-            headersOriginal: req._req.headers,
-            cordis: ctx,
-            request,
-            web: snapshot(),
-          });
-          if (res._res.destroyed) return;
-          res._res.statusCode = httpResponse.statusCode;
-          for (const [key, value] of httpResponse.headers) res._res.appendHeader(key, value);
-          res._res.setHeader("Cache-Control", "no-store");
-          if (req.method === "HEAD") res._res.end();
-          else res._res.end(httpResponse.body);
-        })().catch((cause) => {
-          ctx.logger.error(cause);
-          if (res._res.destroyed) return;
-          if (!res._res.headersSent) res._res.statusCode = 500;
-          res._res.end("Internal server error");
-        });
+        if (error) fail(error);
+        else void render().catch(fail);
       });
     });
   });

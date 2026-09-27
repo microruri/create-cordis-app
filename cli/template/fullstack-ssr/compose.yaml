@@ -1,0 +1,34 @@
+services:
+  db-app-a:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: acme
+      POSTGRES_PASSWORD: acme
+      POSTGRES_DB: app_a
+    ports:
+      - "127.0.0.1:${APP_A_DB_PORT:-5435}:5432"
+    volumes:
+      - db-app-a:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acme -d app_a"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  db-app-b:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: acme
+      POSTGRES_PASSWORD: acme
+      POSTGRES_DB: app_b
+    ports:
+      - "127.0.0.1:${APP_B_DB_PORT:-5436}:5432"
+    volumes:
+      - db-app-b:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acme -d app_b"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  db-app-a:
+  db-app-b:

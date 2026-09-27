@@ -29,7 +29,7 @@ parent directory. Existing files and directories are never overwritten.
 Use a lowercase project name such as `my-app`. Paths and scoped package names are
 not accepted. Run `node cli/dist/index.js --help` for usage.
 
-After creating a project:
+After creating a `workspace` project:
 
 ```sh
 cd my-app
@@ -39,17 +39,27 @@ pnpm dev
 
 ## Templates
 
-| Template                                                | Includes                                                                                                            | Requirements                        |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| [workspace](./cli/template/workspace/README.md)         | Two independent Cordis apps, YAML configuration, shared runtime, plugin HMR, and build tooling                      | Node.js >=24.12.0 <25; pnpm 11.24.0 |
-| [fullstack](./cli/template/fullstack/README.md)         | Two independent fullstack Cordis apps, plugin-owned React pages and cards, typed tRPC APIs, and integrated Vite HMR | Node.js >=24.12.0 <25; pnpm 11.24.0 |
-| [fullstack-ssr](./cli/template/fullstack-ssr/README.md) | Two independent Cordis apps with Vike SSR, plugin-owned React pages, typed server callers, and HTTP tRPC            | Node.js >=24.12.0 <25; pnpm 11.24.0 |
+| Template                                                | Includes                                                                                                                                             | Requirements                                        |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| [workspace](./cli/template/workspace/README.md)         | Two independent Cordis apps, YAML configuration, shared runtime, plugin HMR, and build tooling                                                       | Node.js >=24.12.0 <25; pnpm 11.24.0                 |
+| [fullstack](./cli/template/fullstack/README.md)         | Two Cordis apps with React SPA pages and cards, HTTP tRPC, Vite HMR, Tailwind CSS, daisyUI, and Drizzle/PostgreSQL todos                             | Node.js >=24.12.0 <25; pnpm 11.24.0; Docker Compose |
+| [fullstack-ssr](./cli/template/fullstack-ssr/README.md) | Two Cordis apps with React Server Components and streaming SSR, typed server callers, HTTP tRPC, Tailwind CSS, daisyUI, and Drizzle/PostgreSQL todos | Node.js >=24.12.0 <25; pnpm 11.24.0; Docker Compose |
 
 To create the SSR template from this checkout:
 
 ```sh
 node cli/dist/index.js my-app --template fullstack-ssr
+cd my-app
+pnpm install
+pnpm db:setup
+pnpm dev
 ```
+
+Both fullstack templates need Docker running for `db:setup`. Each app gets its own
+PostgreSQL container and volume. Setup preserves existing env files and data and
+applies the committed migrations; `dev` and `start` do not migrate automatically.
+Open `/todos` on either app to try persistent CRUD. See each template's README for
+database ports, schema changes, and deployment steps.
 
 The project name determines the output directory. All templates keep
 `@acme` as their package scope; replace it with your own scope when needed.

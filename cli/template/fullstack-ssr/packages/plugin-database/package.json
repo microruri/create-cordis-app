@@ -1,0 +1,24 @@
+{
+  "name": "@acme/plugin-database",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "rolldown -c ../../rolldown.config.ts --configLoader native"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "cordis": "catalog:",
+    "drizzle-orm": "0.45.3",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

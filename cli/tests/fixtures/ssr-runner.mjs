@@ -66,6 +66,19 @@ assert.equal(
   (await fetch(instance.ctx.server.baseUrl + "/api/trpc/request-test/read")).status,
   404,
 );
+let navigationValue = 0;
+await instance.ctx.plugin({
+  inject: ["rpc"],
+  apply(ctx) {
+    ctx.rpc.register(
+      "navigation-test",
+      t.router({
+        read: t.procedure.query(() => navigationValue),
+        change: t.procedure.mutation(() => ++navigationValue),
+      }),
+    );
+  },
+});
 process.send({ ready: instance.ctx.server.baseUrl });
 process.on("message", async (message) => {
   if (message !== "close") return;

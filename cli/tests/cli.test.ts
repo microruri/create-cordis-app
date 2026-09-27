@@ -39,6 +39,7 @@ for (const name of ["workspace", "fullstack", "fullstack-ssr"]) {
     assert.equal(result.status, 0, result.stderr);
     assert.ok(result.stdout.includes(`Created my-app using ${name}`));
     assert.match(result.stdout, /cd my-app/);
+    assert.equal(result.stdout.includes("pnpm db:setup"), name !== "workspace");
 
     const project = join(directory, "my-app");
     for (const file of [
@@ -53,15 +54,30 @@ for (const name of ["workspace", "fullstack", "fullstack-ssr"]) {
       "apps/app-b/.env.example",
       "apps/app-a/cordis.yml",
       "apps/app-b/cordis.dev.yml",
+      ...(name === "workspace"
+        ? []
+        : [
+            "compose.yaml",
+            "drizzle/0000_create_todos.sql",
+            "drizzle/meta/_journal.json",
+            "scripts/database.mjs",
+            "packages/plugin-database/src/index.ts",
+            "packages/plugin-todos/src/server/schema.ts",
+            "packages/plugin-todos/src/server/router.ts",
+            name === "fullstack"
+              ? "packages/plugin-todos/src/client/Todos.tsx"
+              : "packages/plugin-todos/src/web/todos/Page.tsx",
+          ]),
       ...(name === "fullstack-ssr"
         ? [
-            "packages/plugin-web/web/+config.ts",
-            "packages/plugin-web/web/+Wrapper.tsx",
+            "packages/plugin-web/web/entry-rsc.tsx",
+            "packages/plugin-web/web/entry-ssr.tsx",
+            "packages/plugin-web/web/client.ts",
             "packages/plugin-web/bin/cordis-web.mjs",
             "packages/plugin-rpc/src/index.ts",
-            "packages/plugin-hello-a/src/web/hello-a/+data.ts",
+            "packages/plugin-hello-a/src/web/hello-a/Greeting.tsx",
             "packages/plugin-hello-a/src/web/hello-a/Page.tsx",
-            "packages/plugin-hello-b/src/web/hello-b/+Page.tsx",
+            "packages/plugin-hello-b/src/web/pages.ts",
           ]
         : name === "workspace"
           ? ["packages/plugin-hello-a/src/index.ts", "packages/plugin-hello-b/src/index.ts"]

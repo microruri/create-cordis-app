@@ -17,11 +17,17 @@
       config:
         app: app-b
         prefix: /api
+    - id: database
+      name: "@acme/plugin-database"
+      config:
+        url: !!js env.DATABASE_URL
     - id: hello
       name: "@acme/plugin-hello-b"
       config:
         app: app-b
         greeting: !!js env.GREETING ?? 'Hello from app-b!'
+    - id: todos
+      name: "@acme/plugin-todos"
     - id: web
       name: "@acme/plugin-web"
       config:

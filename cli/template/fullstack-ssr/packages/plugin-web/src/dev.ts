@@ -1,23 +1,31 @@
 import type { Context } from "cordis";
 import type {} from "@cordisjs/plugin-server";
-import { dirname, relative } from "node:path";
-import { createDevMiddleware } from "vike/server";
-import { generate } from "./generate.ts";
-import { webConfig } from "./vite.ts";
+import { dirname, join } from "node:path";
+import { createServer, isRunnableDevEnvironment, type ViteDevServer } from "vite";
+import { discover } from "./discover.ts";
+import { webConfig, webRoot } from "./vite.ts";
+import type { ServerEntry } from "./types.ts";
 
 export async function development(ctx: Context, appRoot: string) {
-  let config = await generate(appRoot, true);
-  const options = webConfig(appRoot);
-  const { viteServer } = await createDevMiddleware({
-    root: config.root,
-    viteConfig: {
-      ...options,
-      server: {
-        ...options.server,
-        ws: { server: ctx.server._http, path: "/@vite/hmr", clientPort: ctx.server.port },
-      },
+  let config = await discover(appRoot, true);
+  const options = webConfig(appRoot, () => config.plugins);
+  const vite: ViteDevServer = await createServer({
+    ...options,
+    server: {
+      ...options.server,
+      ws: { server: ctx.server._http, path: "/@vite/hmr", clientPort: ctx.server.port },
     },
   });
+  const environment = vite.environments.rsc!;
+  if (!isRunnableDevEnvironment(environment)) throw new Error("RSC environment is not runnable");
+  const entry = async () =>
+    (await environment.runner.import(join(webRoot, "entry-rsc.tsx"))) as ServerEntry;
+  try {
+    (await entry()).validate();
+  } catch (error) {
+    await vite.close();
+    throw error;
+  }
   ctx.on("server/upgrade", async (req, next) => {
     if (
       req.path === "/@vite/hmr" &&
@@ -30,57 +38,46 @@ export async function development(ctx: Context, appRoot: string) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   const refreshBrowser = () => {
-    if (stopped) return;
     clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (!stopped) viteServer.ws.send({ type: "full-reload", path: "*" });
-    }, 150);
+    if (!stopped)
+      timer = setTimeout(() => {
+        if (!stopped) vite.ws.send({ type: "full-reload", path: "*" });
+      }, 150);
   };
   const watch = () =>
-    viteServer.watcher.add([
-      ...config.files,
-      ...config.plugins.map((plugin) => dirname(plugin.module)),
-    ]);
+    vite.watcher.add([...config.files, ...config.plugins.map((plugin) => dirname(plugin.module))]);
   const changed = (file: string) => {
-    const inPlugin = config.plugins.some((plugin) => {
-      const path = relative(dirname(plugin.module), file);
-      return !path.startsWith("..") && /(^|[\\/])\+/.test(path);
-    });
-    if (!config.files.includes(file) && !inPlugin) return;
+    const configuration = config.files.includes(file);
+    const manifest = config.plugins.some((plugin) => plugin.module === file);
+    if (!configuration && !manifest) return;
     pending = pending
       .then(async () => {
         if (stopped) return;
-        config = await generate(appRoot, true);
-        if (config.changed) {
-          // Recreate Vike's route graph after adding or removing generated entries.
-          await viteServer.restart();
-          attach();
-        }
+        config = await discover(appRoot, true);
+        for (const environment of Object.values(vite.environments))
+          environment.moduleGraph.invalidateAll();
         watch();
-        // Vike handles component edits; changed generated entries need a reload.
-        if (config.changed || config.files.includes(file)) refreshBrowser();
+        (await entry()).validate();
+        refreshBrowser();
       })
       .catch((error: unknown) => {
         ctx.logger.error(error);
-        viteServer.ws.send({ type: "error", err: { message: String(error), stack: "" } });
+        vite.ws.send({ type: "error", err: { message: String(error), stack: "" } });
       });
   };
-  function attach() {
-    viteServer.watcher.on("add", changed);
-    viteServer.watcher.on("change", changed);
-    viteServer.watcher.on("unlink", changed);
-  }
   watch();
-  attach();
+  vite.watcher.on("add", changed);
+  vite.watcher.on("change", changed);
+  vite.watcher.on("unlink", changed);
   ctx.on("internal/status", refreshBrowser, { global: true });
   ctx.effect(() => async () => {
     stopped = true;
     clearTimeout(timer);
-    viteServer.watcher.off("add", changed);
-    viteServer.watcher.off("change", changed);
-    viteServer.watcher.off("unlink", changed);
+    vite.watcher.off("add", changed);
+    vite.watcher.off("change", changed);
+    vite.watcher.off("unlink", changed);
     await pending;
-    await viteServer.close();
+    await vite.close();
   });
-  return (...args: Parameters<typeof viteServer.middlewares>) => viteServer.middlewares(...args);
+  return { vite, entry };
 }
