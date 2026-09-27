@@ -70,6 +70,14 @@ for (const name of ["workspace", "fullstack", "fullstack-ssr"]) {
           ]),
       ...(name === "fullstack-ssr"
         ? [
+            "AGENTS.md",
+            ".agents/skills/cordis-plugins/SKILL.md",
+            ".agents/skills/react-vite-rsc/SKILL.md",
+            ".agents/skills/trpc-tanstack-query/SKILL.md",
+            ".agents/skills/drizzle-postgres/SKILL.md",
+            ".agents/skills/tailwind-daisyui/SKILL.md",
+            ".agents/skills/dependency-validation/SKILL.md",
+            ".agents/skills/dependency-validation/references/validation.md",
             "packages/plugin-web/web/entry-rsc.tsx",
             "packages/plugin-web/web/entry-ssr.tsx",
             "packages/plugin-web/web/client.ts",

@@ -24,6 +24,14 @@ starts both databases, waits for health checks, and applies committed migrations
 Existing environment files and data are preserved. Neither `dev` nor `start`
 runs migrations automatically.
 
+## Working with coding agents
+
+[AGENTS.md](AGENTS.md) summarizes the project conventions and links to focused
+skills in [.agents/skills](.agents/skills). Each skill combines local integration
+notes with official documentation. For dependency changes, follow the
+[validation matrix](.agents/skills/dependency-validation/references/validation.md)
+for development, retained caches, HMR, production, and hydration.
+
 ## Layout
 
 ```text
