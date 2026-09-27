@@ -23,7 +23,14 @@
     "lint": "oxlint apps packages scripts rolldown.config.ts --deny-warnings",
     "lint:fix": "pnpm lint --fix",
     "format": "oxfmt --write .",
-    "format:check": "oxfmt --check ."
+    "format:check": "oxfmt --check .",
+    "db:setup": "node scripts/database.mjs setup",
+    "db:up": "node scripts/database.mjs up",
+    "db:down": "node scripts/database.mjs down",
+    "db:migrate:app-a": "node scripts/database.mjs migrate app-a",
+    "db:migrate:app-b": "node scripts/database.mjs migrate app-b",
+    "db:migrate": "node scripts/database.mjs migrate",
+    "db:new": "node scripts/database.mjs new"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -33,5 +40,11 @@
     "rolldown": "^1.2.9",
     "turbo": "2.11.3",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.3",
+    "pg": "8.23.0",
+    "dotenv": "17.4.2",
+    "dotenv-expand": "12.0.3"
   }
 }

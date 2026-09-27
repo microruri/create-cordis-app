@@ -10,18 +10,20 @@
   "dependencies": {
     "@acme/plugin-hello-a": "workspace:*",
     "@acme/runtime": "workspace:*",
-    "@cordisjs/plugin-env": "1.0.1",
-    "@cordisjs/plugin-group": "1.0.0",
-    "@cordisjs/plugin-include": "1.1.0",
-    "@cordisjs/plugin-logger-console": "1.0.0",
-    "@cordisjs/plugin-server": "1.7.0",
-    "cordis": "4.0.0-rc.10",
+    "@cordisjs/plugin-env": "catalog:",
+    "@cordisjs/plugin-group": "catalog:",
+    "@cordisjs/plugin-include": "catalog:",
+    "@cordisjs/plugin-logger-console": "catalog:",
+    "@cordisjs/plugin-server": "catalog:",
+    "cordis": "catalog:",
     "@acme/plugin-rpc": "workspace:*",
-    "@acme/plugin-web": "workspace:*"
+    "@acme/plugin-web": "workspace:*",
+    "@acme/plugin-database": "workspace:*",
+    "@acme/plugin-todos": "workspace:*"
   },
   "devDependencies": {
-    "@cordisjs/plugin-hmr": "1.1.0",
-    "@cordisjs/plugin-timer": "1.1.3"
+    "@cordisjs/plugin-hmr": "catalog:",
+    "@cordisjs/plugin-timer": "catalog:"
   },
   "private": true
 }

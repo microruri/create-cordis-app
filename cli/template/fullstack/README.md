@@ -1,21 +1,29 @@
 # Cordis fullstack workspace
 
 Two independent Cordis applications with plugin-owned React pages, overview cards,
-and typed APIs. Each app serves its own frontend and backend on one port.
-Requires Node.js >=24.12.0 <25 and pnpm 11.24.0.
+and typed APIs, styled with Tailwind CSS and daisyUI. Each app serves its own
+frontend and backend on one port, with a separate PostgreSQL database.
+Requires Node.js >=24.12.0 <25, pnpm 11.24.0, and Docker with Compose.
 
 ## Get started
 
 ```sh
 pnpm install
+pnpm db:setup
 pnpm dev
 ```
 
 - App A: http://127.0.0.1:3081
 - App B: http://127.0.0.1:3082
 
-Each app has a hello page with a typed query and mutation, plus an overview card.
-The examples do not persist data. `@acme` is a placeholder package scope.
+Each app has a hello page, an overview card, and a `/todos` page for adding,
+editing, completing, and deleting tasks. Tasks persist in that app's database.
+`@acme` is a placeholder package scope.
+
+Start Docker before running `db:setup`. It creates missing app `.env` files from
+their examples, starts both databases, waits for health checks, and applies the
+committed migrations. Existing `.env` files and data are preserved. `dev` and
+`start` never create databases or run migrations automatically.
 
 ## Layout
 
@@ -26,6 +34,10 @@ apps/
 packages/
   runtime/                  Shared Cordis startup and shutdown
   plugin-rpc/               tRPC service and typed client helper
+  plugin-database/          App-scoped PostgreSQL pool and Drizzle service
+  plugin-todos/
+    src/server/             Schema, typed CRUD router, and Cordis entry
+    src/client/             Todo page and web registration
   plugin-web/
     src/                    Discovery, Vite integration, build, and static serving
     client/                 Shared React shell, routing, and overview card slot
@@ -36,6 +48,8 @@ packages/
   plugin-hello-b/
     src/server/
     src/client/
+drizzle/                    SQL migrations and their journal
+compose.yaml                Two independent local PostgreSQL services
 ```
 
 There is no separate web application. App A loads hello-a; App B loads hello-b.
@@ -43,27 +57,43 @@ Both use the same web host without maintaining separate frontend plugin lists.
 
 ## Commands
 
-| Command                                | Purpose                                          |
-| -------------------------------------- | ------------------------------------------------ |
-| `pnpm dev`                             | Develop both fullstack apps                      |
-| `pnpm dev:app-a`, `pnpm dev:app-b`     | Develop one app                                  |
-| `pnpm build`                           | Build both apps and their workspace dependencies |
-| `pnpm build:app-a`, `pnpm build:app-b` | Build one app and its dependencies               |
-| `pnpm start`                           | Start both built apps                            |
-| `pnpm start:app-a`, `pnpm start:app-b` | Start one built app                              |
-| `pnpm typecheck`                       | Check server and browser TypeScript              |
-| `pnpm lint`, `pnpm lint:fix`           | Check or fix with Oxlint                         |
-| `pnpm format`, `pnpm format:check`     | Format or check with Oxfmt                       |
-| `pnpm clean`                           | Remove dependencies, build outputs, and caches   |
+| Command                                          | Purpose                                          |
+| ------------------------------------------------ | ------------------------------------------------ |
+| `pnpm dev`                                       | Develop both fullstack apps                      |
+| `pnpm dev:app-a`, `pnpm dev:app-b`               | Develop one app                                  |
+| `pnpm build`                                     | Build both apps and their workspace dependencies |
+| `pnpm build:app-a`, `pnpm build:app-b`           | Build one app and its dependencies               |
+| `pnpm start`                                     | Start both built apps                            |
+| `pnpm start:app-a`, `pnpm start:app-b`           | Start one built app                              |
+| `pnpm typecheck`                                 | Check server and browser TypeScript              |
+| `pnpm lint`, `pnpm lint:fix`                     | Check or fix with Oxlint                         |
+| `pnpm format`, `pnpm format:check`               | Format or check with Oxfmt                       |
+| `pnpm clean`                                     | Remove dependencies, build outputs, and caches   |
+| `pnpm db:setup`                                  | Prepare env files, start databases, and migrate  |
+| `pnpm db:up`, `pnpm db:down`                     | Start databases or stop them while keeping data  |
+| `pnpm db:new add_users`                          | Create an empty SQL migration and journal entry  |
+| `pnpm db:migrate:app-a`, `pnpm db:migrate:app-b` | Apply migrations to one app's database           |
+| `pnpm db:migrate`                                | Apply migrations to both databases               |
 
 Run `pnpm install` again after cleaning. Dev and start use pnpm directly;
 Turbo only orchestrates builds. Existing dependency versions are shared across apps.
 
 ## Configuration
 
+React (including its types), tRPC, TanStack, and Cordis dependency versions live in
+the default `catalog` in `pnpm-workspace.yaml`. Packages reference them with
+`"catalog:"`; edit the catalog and run `pnpm install` to update shared versions.
+Local `@acme/*` dependencies use `"workspace:*"`.
+
 Each application loads `cordis.yml`. Development adds `cordis.dev.yml`, Timer,
-and Cordis HMR. Copy the app's `.env.example` to `.env` to change its host, port,
-or greeting. Shell environment values take precedence; restart after env changes.
+and Cordis HMR. Edit the app's `.env` to change its host, port, greeting, or
+`DATABASE_URL`. The setup command copies `.env.example` if the file is missing.
+Environment files load in this order: `.env`, `.env.local`, `.env.<mode>`, then
+`.env.<mode>.local`; later files override earlier ones, and shell values win over
+all files. Dev uses `development`; start uses `production`, unless `NODE_ENV` is
+already set. Set the same `NODE_ENV` when running migrations for that environment.
+Restart after env changes. Only `VITE_*` values are exposed to browser code;
+keep database credentials out of those variables.
 
 The web host is an ordinary plugin:
 
@@ -126,13 +156,14 @@ without registering an RPC router. A plugin may be reused in both apps.
   does not remove the application shell or another plugin's card.
 
 The overview exposes one card slot. The shell is shared source in plugin-web and
-can be customized there. Runtime, RPC infrastructure, web server integration, and
+can be customized there. Runtime, RPC infrastructure, database service, web server integration, and
 dependency changes require a restart. Production does not watch source or YAML.
 
 ## Production
 
 ```sh
 pnpm build
+pnpm db:migrate
 pnpm start
 ```
 
@@ -154,7 +185,13 @@ deployment bundles. Production serves built files and does not load Vite.
 Deep links return the SPA HTML; unknown API routes, dotfiles, and missing assets
 do not. HTML is revalidated; hashed assets use immutable caching.
 
-The frontend is a client-rendered React SPA. Authentication, databases, SSR,
+Run `db:migrate` against the deployment databases before starting the apps, using
+their production `DATABASE_URL` values. Keep `drizzle/` and the database
+script in the migration environment. Migration dependencies are included in a
+production install; development dependencies are needed for building. Building
+does not connect to PostgreSQL.
+
+The frontend is a client-rendered React SPA. Authentication, SSR,
 runtime package installation, and a plugin marketplace are left to the application.
 Both apps bind to 127.0.0.1 by default.
 
@@ -165,9 +202,69 @@ postinstall skips nested templates and CI. Pre-commit fixes staged code with
 Oxlint and Oxfmt, then checks whitespace; pre-push runs typecheck.
 `allowBuilds.lefthook: false` leaves installation to this guarded script.
 
+## Database and migrations
+
+Each app has its own PostgreSQL 17 container, database, and named Docker volume.
+The local credentials are `acme` / `acme`:
+
+| App   | Host address     | Database |
+| ----- | ---------------- | -------- |
+| App A | `127.0.0.1:5433` | `app_a`  |
+| App B | `127.0.0.1:5434` | `app_b`  |
+
+`pnpm db:down` preserves volumes. `pnpm clean` also leaves database data intact.
+To change host ports, set `APP_A_DB_PORT` and `APP_B_DB_PORT` in your shell (or
+the workspace root's Compose `.env`), and update each app's `DATABASE_URL` to
+match. Compose settings live at the workspace root; runtime and migration
+settings live in each app directory. A shell-wide `DATABASE_URL` overrides both
+apps' files, so use app-local files when the databases differ.
+
+`@acme/plugin-database` owns one connection pool per app and exposes Drizzle as
+`ctx.database.db`. A business plugin declares `inject = ["database", "rpc"]`,
+then passes its scoped database handle to its router factory. The todo plugin
+demonstrates this. The pool is closed when its service stops; database service
+changes require a restart, while business-plugin HMR reuses the pool.
+A missing or unreachable database causes startup to fail with a connection hint.
+
+Business plugins own their schemas in `packages/*/src/server/schema.ts`.
+The workspace owns migration history:
+
+1. Add or edit a business plugin's schema. Use distinct table names across plugins.
+2. Run `pnpm db:new add_users` and write the corresponding SQL in the new file.
+   Use `--> statement-breakpoint` between statements where needed, and review it.
+3. Run `pnpm db:migrate`, or migrate just one app with `db:migrate:app-a`.
+4. Commit the schema, SQL, and `drizzle/meta/_journal.json` together.
+
+Migrations run through Drizzle ORM. There is no schema diff generator or automatic
+rollback command. Keep TypeScript schemas and SQL in sync, and never modify an
+applied migration or its journal timestamp. New SQL runs transactionally, with a
+PostgreSQL advisory lock serializing migration runners for each database.
+
+Both databases receive the same workspace schema, including tables for plugins
+not enabled in that app. Migrations never depend on the runtime YAML plugin list.
+Disabling or removing a plugin does not delete its tables or data; removing a
+table requires an explicit SQL migration.
+Use separate migration histories if your apps later need different schema histories.
+
+The demo APIs have no authentication and both apps bind to localhost by default.
+Use your own database credentials and add application authentication before
+deploying a public service.
+
+## Styling
+
+Tailwind CSS runs through the Vite plugin. Edit
+`packages/plugin-web/client/style.css` for shared styles and daisyUI themes.
+The template uses the light theme by default and follows the system dark theme.
+Explicit `@source` paths scan the shared shell and business-plugin client directories;
+keep styles in those sources or add a source path for a new shared UI package.
+Use Tailwind utilities and daisyUI classes directly in React components. CSS and
+component changes participate in Vite HMR.
+
 ## References
 
 - [create-t3-app](https://github.com/t3-oss/create-t3-app) and [create-t3-turbo](https://github.com/t3-oss/create-t3-turbo): workspace organization and typed APIs.
 - [Vite](https://vite.dev/guide/api-javascript): embedded development server and build API.
 - [tRPC](https://trpc.io/docs/client/tanstack-react-query/setup): typed clients and TanStack Query.
 - [Cordis](https://cordis.js.org/): plugin composition and scoped cleanup.
+- [Drizzle](https://orm.drizzle.team/docs/overview) and [PostgreSQL](https://www.postgresql.org/)
+- [Tailwind CSS](https://tailwindcss.com/docs) and [daisyUI](https://daisyui.com/docs/)

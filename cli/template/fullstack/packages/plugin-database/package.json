@@ -1,7 +1,8 @@
 {
-  "name": "@acme/runtime",
+  "name": "@acme/plugin-database",
   "version": "0.0.0",
   "type": "module",
+  "private": true,
   "scripts": {
     "build": "rolldown -c ../../rolldown.config.ts --configLoader native"
   },
@@ -13,10 +14,11 @@
     }
   },
   "dependencies": {
-    "@cordisjs/plugin-include": "catalog:",
-    "@cordisjs/plugin-loader": "catalog:",
-    "@cordisjs/plugin-server": "catalog:",
-    "cordis": "catalog:"
+    "cordis": "catalog:",
+    "drizzle-orm": "0.45.3",
+    "pg": "8.23.0"
   },
-  "private": true
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
 }

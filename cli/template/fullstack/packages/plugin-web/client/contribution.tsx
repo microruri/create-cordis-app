@@ -15,8 +15,11 @@ class Boundary extends Component<{ children: ReactNode }, { error: string | null
   render() {
     if (this.state.error)
       return (
-        <p role="alert">
-          {this.state.error} <button onClick={() => this.setState({ error: null })}>Retry</button>
+        <p className="alert alert-error my-3" role="alert">
+          {this.state.error}{" "}
+          <button className="btn btn-primary" onClick={() => this.setState({ error: null })}>
+            Retry
+          </button>
         </p>
       );
     return this.props.children;

@@ -84,7 +84,8 @@ async function fixture(t: TestContext) {
       await cp(join(root, directory), join(target, directory), {
         recursive: true,
         filter: (source) =>
-          !["node_modules", "dist", ".turbo", ".cordis"].includes(basename(source)),
+          !["node_modules", "dist", ".turbo", ".cordis"].includes(basename(source)) &&
+          (!basename(source).startsWith(".env") || basename(source) === ".env.example"),
       });
       const pkg = JSON.parse(await readFile(join(root, directory, "package.json"), "utf8"));
       workspace.set(pkg.name, join(target, directory));
@@ -102,7 +103,9 @@ async function fixture(t: TestContext) {
   }
   for (const app of ["app-a", "app-b"]) {
     const path = join(target, "apps", app, "cordis.yml");
-    const config = (await readFile(path, "utf8")).replace(/!!js Number\(env.PORT \?\? \d+\)/, "0");
+    const config = (await readFile(path, "utf8"))
+      .replace(/    - id: (?:database|todos)\r?\n[\s\S]*?(?=    - id:|$)/g, "")
+      .replace(/!!js Number\(env.PORT \?\? \d+\)/, "0");
     await writeFile(path, config);
     const dist = join(target, "apps", app, "dist/client");
     await mkdir(join(dist, "assets"), { recursive: true });

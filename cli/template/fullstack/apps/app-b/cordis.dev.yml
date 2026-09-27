@@ -11,8 +11,8 @@
     root: [packages]
     # HMR matches native paths, so include POSIX and Windows separators.
     ignored:
-      - "**/{node_modules,dist,client,plugin-web,runtime,plugin-rpc}{,/**}"
-      - '*\\{node_modules,dist,client,plugin-web,runtime,plugin-rpc}{,\\*}'
+      - "**/{node_modules,dist,client,plugin-web,runtime,plugin-rpc,plugin-database}{,/**}"
+      - '*\\{node_modules,dist,client,plugin-web,runtime,plugin-rpc,plugin-database}{,\\*}'
       - "**/.*"
       - '*\\.*'
     debounce: 100

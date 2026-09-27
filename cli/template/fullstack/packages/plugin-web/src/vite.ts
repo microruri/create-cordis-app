@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { normalizePath, searchForWorkspaceRoot, type Plugin, type InlineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import type { WebEntry } from "./discover.ts";
 
 export const registryId = "virtual:cordis-web";
@@ -39,7 +40,7 @@ export function webConfig(appRoot: string, entries: () => WebEntry[]): InlineCon
     root: fileURLToPath(new URL("../client/", import.meta.url)),
     cacheDir: join(appRoot, ".cordis/vite"),
     envDir: appRoot,
-    plugins: [registry, react()],
+    plugins: [registry, react(), tailwindcss()],
     resolve: { dedupe: ["react", "react-dom", "@tanstack/react-query", "@tanstack/react-router"] },
     server: {
       fs: {
