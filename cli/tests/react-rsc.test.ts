@@ -19,7 +19,7 @@ import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 import { test, type TestContext } from "node:test";
 
-const root = fileURLToPath(new URL("../template/fullstack-ssr/", import.meta.url));
+const root = fileURLToPath(new URL("../template/react-rsc/", import.meta.url));
 
 async function eventually(check: () => Promise<void>) {
   const deadline = Date.now() + 30000;
@@ -37,12 +37,12 @@ async function eventually(check: () => Promise<void>) {
 }
 
 async function fixture(t: TestContext) {
-  const target = await mkdtemp(join(tmpdir(), "cca-ssr-with spaces-"));
+  const target = await mkdtemp(join(tmpdir(), "cca-react-rsc-with spaces-"));
   const cleanups: (() => Promise<unknown> | void)[] = [];
   t.after(async () => {
     for (const cleanup of cleanups.reverse()) await cleanup();
     assert.equal(dirname(resolve(target)), resolve(tmpdir()));
-    assert.ok(basename(target).startsWith("cca-ssr-with spaces-"));
+    assert.ok(basename(target).startsWith("cca-react-rsc-with spaces-"));
     await rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   });
   await cp(root, target, {
@@ -236,7 +236,7 @@ async function verifyStreaming(app: { url: string; logs: () => string }) {
 }
 
 test(
-  "RSC production isolates apps, streams pages, and serves HTTP without Vite",
+  "react-rsc production isolates apps, streams pages, and serves HTTP without Vite",
   { timeout: 120000 },
   async (t) => {
     const f = await fixture(t);
@@ -396,7 +396,7 @@ test(
 );
 
 test(
-  "SSR development reloads YAML, backend code, and page manifests, then closes HMR connections",
+  "react-rsc development reloads YAML, backend code, and page manifests, then closes HMR connections",
   { timeout: 90000 },
   async (t) => {
     const f = await fixture(t);

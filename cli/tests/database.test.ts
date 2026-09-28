@@ -219,7 +219,7 @@ async function rpc<T>(url: string, action: string, input?: unknown, status = 200
   return data.result?.data as T;
 }
 
-for (const template of ["fullstack", "fullstack-ssr"]) {
+for (const template of ["react-spa", "react-rsc"]) {
   test(`${template} creates manual migrations and rejects invalid names without changing history`, async (t) => {
     const source = fileURLToPath(new URL(`../template/${template}/`, import.meta.url));
     const target = await mkdtemp(join(tmpdir(), "cca-migration-test-"));

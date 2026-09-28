@@ -5,7 +5,7 @@ import {
   createNavigation,
   pageUrl,
   type NavigationRequest,
-} from "../template/fullstack-ssr/packages/plugin-web/web/navigation-state.ts";
+} from "../template/react-rsc/packages/plugin-web/web/navigation-state.ts";
 
 function fixture(t: TestContext) {
   let now = 0;

@@ -3,10 +3,10 @@
 These tests belong to the scaffolder and are not included in generated projects or
 the published CLI package. They cover CLI project creation and errors, plus HTTP
 behavior, lifecycle, configuration errors, app-local environments, YAML reloads,
-and isolated plugin HMR in the workspace template. Fullstack tests also cover typed
+and isolated plugin HMR in the workspace template. React SPA tests also cover typed
 RPC, input validation, plugin lifecycle streams, isolated application frontends,
 configuration discovery, build isolation, and production serving.
-SSR tests build both apps in a temporary workspace, verify rendered data and HTTP
+React RSC tests build both apps in a temporary workspace, verify rendered data and HTTP
 behavior, RSC navigation responses, dynamic parameters, redirects, request
 isolation, disabled plugins, server-only boundaries, missing builds, and development
 reloads. They run each app in a separate process, with independent SSR builds,
@@ -38,8 +38,8 @@ repository root, install the CLI and each independent template workspace:
 ```sh
 pnpm install
 pnpm --dir cli/template/workspace install
-pnpm --dir cli/template/fullstack install
-pnpm --dir cli/template/fullstack-ssr install
+pnpm --dir cli/template/react-spa install
+pnpm --dir cli/template/react-rsc install
 pnpm test
 ```
 

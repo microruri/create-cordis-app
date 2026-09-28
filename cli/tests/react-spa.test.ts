@@ -18,17 +18,17 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 import { test, type TestContext } from "node:test";
-import { createApp } from "../template/fullstack/packages/runtime/src/index.ts";
-import { createRouter } from "../template/fullstack/packages/plugin-hello-a/src/server/router.ts";
-import { createPluginClient } from "../template/fullstack/packages/plugin-rpc/src/client.ts";
+import { createApp } from "../template/react-spa/packages/runtime/src/index.ts";
+import { createRouter } from "../template/react-spa/packages/plugin-hello-a/src/server/router.ts";
+import { createPluginClient } from "../template/react-spa/packages/plugin-rpc/src/client.ts";
 import {
   webStateSchema,
   type WebState,
-} from "../template/fullstack/packages/plugin-web/src/shared.ts";
-import { discover } from "../template/fullstack/packages/plugin-web/src/discover.ts";
-import { buildWeb } from "../template/fullstack/packages/plugin-web/src/build.ts";
+} from "../template/react-spa/packages/plugin-web/src/shared.ts";
+import { discover } from "../template/react-spa/packages/plugin-web/src/discover.ts";
+import { buildWeb } from "../template/react-spa/packages/plugin-web/src/build.ts";
 
-const root = fileURLToPath(new URL("../template/fullstack/", import.meta.url));
+const root = fileURLToPath(new URL("../template/react-spa/", import.meta.url));
 const require = createRequire(join(root, "packages/plugin-rpc/package.json"));
 const { QueryClient } = require("@tanstack/react-query") as {
   QueryClient: new () => Parameters<typeof createPluginClient>[2];
@@ -59,12 +59,12 @@ async function eventually(check: () => Promise<void>) {
 }
 
 async function fixture(t: TestContext) {
-  const target = await mkdtemp(join(tmpdir(), "cca-fullstack-with spaces-"));
+  const target = await mkdtemp(join(tmpdir(), "cca-react-spa-with spaces-"));
   const cleanups: (() => Promise<unknown> | void)[] = [];
   t.after(async () => {
     for (const cleanup of cleanups.reverse()) await cleanup();
     assert.equal(dirname(resolve(target)), resolve(tmpdir()));
-    assert.ok(basename(target).startsWith("cca-fullstack-with spaces-"));
+    assert.ok(basename(target).startsWith("cca-react-spa-with spaces-"));
     await rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   });
   for (const file of ["package.json", "pnpm-workspace.yaml", "tsconfig.json"])
@@ -165,7 +165,7 @@ async function query(url: string, id = "hello-a") {
   return ((await response.json()) as RpcResult).result.data;
 }
 
-test("fullstack RPC validates input, separates cache keys, and releases plugin resources", async (t) => {
+test("react-spa RPC validates input, separates cache keys, and releases plugin resources", async (t) => {
   const f = await fixture(t);
   const app = await f.start("app-a");
   assert.equal((await query(app.url)).app, "app-a");
@@ -231,7 +231,7 @@ test("fullstack RPC validates input, separates cache keys, and releases plugin r
   await events.next().catch(() => undefined);
 });
 
-test("fullstack apps serve their own assets, RPC, and plugin lifecycle independently", async (t) => {
+test("react-spa apps serve their own assets, RPC, and plugin lifecycle independently", async (t) => {
   const f = await fixture(t);
   const a = await f.start("app-a");
   const b = await f.start("app-b");
@@ -286,7 +286,7 @@ test("fullstack apps serve their own assets, RPC, and plugin lifecycle independe
   assert.equal((await query(b.url, "hello-b")).app, "app-b");
 });
 
-test("fullstack discovery and build include disabled plugins without executing backend code", async (t) => {
+test("react-spa discovery and build include disabled plugins without executing backend code", async (t) => {
   const f = await fixture(t);
   const appRoot = join(f.target, "apps/app-a");
   const original = await readFile(join(appRoot, "cordis.yml"), "utf8");
@@ -339,7 +339,7 @@ test("fullstack discovery and build include disabled plugins without executing b
   await assert.rejects(discover(appRoot), /without patches/);
 });
 
-test("fullstack production rejects missing frontend builds and stale plugin manifests", async (t) => {
+test("react-spa production rejects missing frontend builds and stale plugin manifests", async (t) => {
   const f = await fixture(t);
   const file = join(f.target, "apps/app-a/dist/client/index.html");
   await rm(file);
@@ -349,7 +349,7 @@ test("fullstack production rejects missing frontend builds and stale plugin mani
   await assert.rejects(f.start("app-a"), /Frontend plugins are not built/);
 });
 
-test("fullstack development reloads YAML and backend source without restarting the process", async (t) => {
+test("react-spa development reloads YAML and backend source without restarting the process", async (t) => {
   const f = await fixture(t);
   const env = { ...process.env, NODE_OPTIONS: "", NODE_ENV: "development" };
   for (const key of ["HOST", "PORT", "GREETING"]) delete env[key as keyof typeof env];
@@ -426,7 +426,7 @@ test("fullstack development reloads YAML and backend source without restarting t
   assert.doesNotMatch(logs, /reload plugin at packages[\\/]plugin-web/);
 });
 
-test("fullstack web lifecycle includes plugins without an RPC router", async (t) => {
+test("react-spa web lifecycle includes plugins without an RPC router", async (t) => {
   const f = await fixture(t);
   const directory = join(f.target, "packages/plugin-card-only");
   await mkdir(directory);
@@ -477,7 +477,7 @@ test("fullstack web lifecycle includes plugins without an RPC router", async (t)
   assert.equal((await query(app.url)).app, "app-a");
 });
 
-test("fullstack Vite HMR shares the HTTP port and closes active browser connections", async (t) => {
+test("react-spa Vite HMR shares the HTTP port and closes active browser connections", async (t) => {
   const f = await fixture(t);
   const config = join(f.target, "apps/app-a/cordis.yml");
   await writeFile(

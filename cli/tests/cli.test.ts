@@ -31,7 +31,7 @@ function run(directory: string, args: string[]) {
   return result;
 }
 
-for (const name of ["workspace", "fullstack", "fullstack-ssr"]) {
+for (const name of ["workspace", "react-spa", "react-rsc"]) {
   test(`CLI creates ${name} without installing dependencies or initializing Git`, async (t) => {
     const template = fileURLToPath(new URL(`../template/${name}/`, import.meta.url));
     const directory = await fixture(t);
@@ -64,11 +64,11 @@ for (const name of ["workspace", "fullstack", "fullstack-ssr"]) {
             "packages/plugin-database/src/index.ts",
             "packages/plugin-todos/src/server/schema.ts",
             "packages/plugin-todos/src/server/router.ts",
-            name === "fullstack"
+            name === "react-spa"
               ? "packages/plugin-todos/src/client/Todos.tsx"
               : "packages/plugin-todos/src/web/todos/Page.tsx",
           ]),
-      ...(name === "fullstack-ssr"
+      ...(name === "react-rsc"
         ? [
             "AGENTS.md",
             ".agents/skills/cordis-plugins/SKILL.md",
@@ -168,6 +168,12 @@ test("CLI rejects invalid names, templates, and arguments before creating files"
   ]) {
     assert.equal(run(directory, args).status, 1, args.join(" "));
   }
+  for (const template of ["fullstack", "fullstack-ssr"]) {
+    const result = run(directory, ["my-app", "--template", template]);
+    assert.equal(result.status, 1, template);
+    assert.match(result.stderr, /Unknown template:/);
+    assert.match(result.stderr, /Available templates: react-rsc, react-spa, workspace\./);
+  }
   assert.deepEqual(await readdir(directory), []);
 });
 
@@ -176,7 +182,8 @@ test("CLI help works without a terminal and missing input fails promptly", async
   const help = run(directory, ["--help"]);
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /Usage: create-cordis-app/);
-  assert.match(help.stdout, /fullstack, fullstack-ssr, workspace/);
+  assert.match(help.stdout, /react-rsc, react-spa, workspace/);
+  assert.doesNotMatch(help.stdout, /fullstack/);
   for (const args of [[], ["my-app"], ["--template", "workspace"]]) {
     const result = run(directory, args);
     assert.equal(result.status, 1);

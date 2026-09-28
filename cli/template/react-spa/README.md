@@ -1,4 +1,4 @@
-# Cordis fullstack workspace
+# Cordis React SPA workspace
 
 Two independent Cordis applications with plugin-owned React pages, overview cards,
 and typed APIs, styled with Tailwind CSS and daisyUI. Each app serves its own

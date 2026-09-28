@@ -1,4 +1,4 @@
-# Cordis SSR workspace
+# Cordis React RSC workspace
 
 Two independent Cordis applications with React Server Components, streaming SSR,
 typed tRPC APIs, Tailwind CSS, daisyUI, and PostgreSQL through Drizzle ORM.
