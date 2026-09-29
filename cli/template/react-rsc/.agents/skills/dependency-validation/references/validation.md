@@ -62,6 +62,10 @@ copy with production dependencies only after building.
 
 Check these browser behaviors in development and production:
 
+- With no active homepage, `/` has no visible content and no console errors.
+  With no page plugins at all, the host still builds, serves, and hydrates. A
+  plugin can register `/`; disabling it restores the empty homepage. Validate
+  navigation state through the hooks or a test page, not a built-in progress bar.
 - The HTML response contains server-rendered page content before hydration. The
   browser becomes interactive without hydration mismatch or missing-QueryClient
   errors. Use the raw document response or a JavaScript-disabled visit to inspect

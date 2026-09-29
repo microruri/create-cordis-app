@@ -13,7 +13,7 @@ export default function HelloPage({ api }: { api: Api }) {
   }
 
   return (
-    <section className="card bg-base-100 border border-base-300 shadow-sm p-6 md:p-8 max-w-4xl">
+    <main className="card bg-base-100 border border-base-300 shadow-sm p-6 md:p-8 max-w-4xl mx-auto my-8">
       <p className="text-xs font-semibold uppercase tracking-widest text-base-content/60">
         {hello.data?.app ?? "Plugin"}
       </p>
@@ -56,6 +56,6 @@ export default function HelloPage({ api }: { api: Api }) {
         )}
         {greet.data && <p>{greet.data.message}</p>}
       </div>
-    </section>
+    </main>
   );
 }

@@ -204,6 +204,22 @@ async function addRequestPages(target: string) {
   return manifest;
 }
 
+async function assertBlankHome(url: string) {
+  const response = await fetch(url);
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1];
+  assert.notEqual(body, undefined, html);
+  assert.equal(
+    body!
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
+      .replace(/<[^>]*>/g, "")
+      .trim(),
+    "",
+  );
+  assert.match(html, /rel="stylesheet"/);
+}
+
 async function verifyStreaming(app: { url: string; logs: () => string }) {
   const response = await fetch(app.url + "/request-test?slow");
   const reader = response.body!.getReader();
@@ -244,6 +260,7 @@ test(
     await f.build();
     for (const suffix of ["a", "b"]) {
       const app = await f.start("app-" + suffix);
+      await assertBlankHome(app.url);
       const response = await fetch(app.url + "/hello-" + suffix);
       const html = await response.text();
       assert.equal(response.status, 200, html);
@@ -357,7 +374,7 @@ test(
       (await fetch(disabled.url + "/hello-a", { headers: { Accept: "text/x-component" } })).status,
       404,
     );
-    assert.doesNotMatch(await fetch(disabled.url).then((r) => r.text()), /href="\/hello-a"/);
+    await assertBlankHome(disabled.url);
     await disabled.close();
     await writeFile(configPath, original);
     await writeFile(join(f.target, "apps/app-a/dist/web-manifest.json"), "[]");
@@ -461,9 +478,81 @@ test(
     );
     await writeFile(manifest, originalManifest);
     await eventually(async () => assert.equal((await fetch(app.url + "/renamed")).status, 404));
+    await assertBlankHome(app.url);
+    await writeFile(
+      manifest,
+      originalManifest +
+        '\npages.push({ id: "home", path: "/", title: "Home", component: () => import("./extra/Page.tsx") });\n',
+    );
+    await eventually(async () =>
+      assert.match(await fetch(app.url).then((r) => r.text()), /Added page/, app.logs()),
+    );
+    await writeFile(
+      config,
+      original.replace("    - id: hello", "    - id: hello\n      disabled: true"),
+    );
+    await eventually(() => assertBlankHome(app.url));
+    await delay(300);
+    await writeFile(config, original);
+    await eventually(async () =>
+      assert.match(await fetch(app.url).then((r) => r.text()), /Added page/, app.logs()),
+    );
+    await writeFile(manifest, originalManifest);
+    await eventually(() => assertBlankHome(app.url));
     const activeSocket = new WebSocket(app.url.replace("http:", "ws:") + "/@vite/hmr", "vite-hmr");
     f.cleanups.push(() => activeSocket.close());
     await once(activeSocket, "open");
     await app.close();
+  },
+);
+
+test(
+  "react-rsc supports plugin homepages and an empty production registry",
+  { timeout: 120000 },
+  async (t) => {
+    const f = await fixture(t);
+    const manifest = join(f.target, "packages/plugin-hello-a/src/web/pages.ts");
+    const source = await readFile(manifest, "utf8");
+    await writeFile(manifest, source.replace('path: "/hello-a"', 'path: "/"'));
+    const configA = join(f.target, "apps/app-a/cordis.yml");
+    const originalA = await readFile(configA, "utf8");
+    const configB = join(f.target, "apps/app-b/cordis.yml");
+    await writeFile(
+      configB,
+      (await readFile(configB, "utf8")).replace(/    - id: hello\r?\n[\s\S]*?(?=    - id:|$)/g, ""),
+    );
+    await f.build();
+    const a = await f.start("app-a");
+    assert.match(await fetch(a.url).then((r) => r.text()), /Hello from app-a!/);
+    assert.equal((await fetch(a.url + "/hello-a")).status, 404);
+    assert.equal((await fetch(a.url, { method: "HEAD" })).status, 200);
+    const rsc = await fetch(a.url, { headers: { Accept: "text/x-component" } });
+    assert.match(await rsc.text(), /Hello from app-a!/);
+    await a.close();
+    await writeFile(
+      configA,
+      originalA.replace("    - id: hello", "    - id: hello\n      disabled: true"),
+    );
+    const disabled = await f.start("app-a");
+    await assertBlankHome(disabled.url);
+    await disabled.close();
+    const b = await f.start("app-b");
+    await assertBlankHome(b.url);
+    assert.equal((await fetch(b.url + "/missing")).status, 404);
+    await b.close();
+    const development = await f.start("app-b", true);
+    await assertBlankHome(development.url);
+    await development.close();
+    await writeFile(
+      manifest,
+      source.replace('path: "/hello-a"', 'path: "/"') +
+        '\npages.push({ id: "duplicate", path: "/", title: "Duplicate", component: () => import("./hello-a/Page.tsx") });\n',
+    );
+    const duplicate = f.child(
+      [join(f.target, "packages/plugin-web/bin/cordis-web.mjs"), "build"],
+      join(f.target, "apps/app-a"),
+    );
+    assert.notEqual((await duplicate.exit)[0], 0);
+    assert.match(duplicate.logs(), /Duplicate page route/);
   },
 );

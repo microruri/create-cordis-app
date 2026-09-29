@@ -8,8 +8,7 @@ import {
   type HydrationBoundaryProps,
 } from "@tanstack/react-query";
 import { NavigationContext, NavigationRevision, useRouter } from "./router-context.ts";
-
-import { Link } from "./link.tsx";
+import "./style.css";
 
 // Keep hydration and its provider on the same Vite dependency entry in development.
 export function HydrationBoundary(props: HydrationBoundaryProps) {
@@ -39,6 +38,19 @@ export function PageBoundary({ children }: { children: ReactNode }) {
     </PageErrorBoundary>
   );
 }
+export function ErrorPage({ notFound = false, retry }: { notFound?: boolean; retry?: () => void }) {
+  const router = useRouter();
+  return (
+    <main role="alert">
+      <h1>{notFound ? "Page not found" : "Something went wrong"}</h1>
+      {!notFound && (
+        <button type="button" onClick={retry ?? router.refresh}>
+          Retry
+        </button>
+      )}
+    </main>
+  );
+}
 class PageErrorBoundary extends Component<
   { children: ReactNode; revision: number; retry: () => void },
   { failed: boolean; revision: number }
@@ -50,18 +62,11 @@ class PageErrorBoundary extends Component<
   static getDerivedStateFromProps(props: { revision: number }, state: { revision: number }) {
     return props.revision !== state.revision ? { failed: false, revision: props.revision } : null;
   }
+  componentDidCatch(error: unknown) {
+    console.error(error);
+  }
   render() {
-    if (this.state.failed)
-      return (
-        <section role="alert">
-          <h1>Something went wrong</h1>
-          <p>Please try again.</p>
-          <button type="button" className="btn btn-primary mr-3" onClick={this.props.retry}>
-            Retry
-          </button>
-          <Link href="/">Back to overview</Link>
-        </section>
-      );
+    if (this.state.failed) return <ErrorPage retry={this.props.retry} />;
     return this.props.children;
   }
 }

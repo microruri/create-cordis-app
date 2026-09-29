@@ -35,7 +35,7 @@ export async function renderHtml(
           </head>
           <body>
             <h1>Something went wrong</h1>
-            <a href="/">Back to overview</a>
+            <a href="">Reload page</a>
           </body>
         </html>,
       ),

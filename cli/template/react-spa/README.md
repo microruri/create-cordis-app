@@ -1,6 +1,6 @@
 # Cordis React SPA workspace
 
-Two independent Cordis applications with plugin-owned React pages, overview cards,
+Two independent Cordis applications with plugin-owned React pages
 and typed APIs, styled with Tailwind CSS and daisyUI. Each app serves its own
 frontend and backend on one port, with a separate PostgreSQL database.
 Requires Node.js >=24.12.0 <25, pnpm 11.24.0, and Docker with Compose.
@@ -13,10 +13,10 @@ pnpm db:setup
 pnpm dev
 ```
 
-- App A: http://127.0.0.1:3081
-- App B: http://127.0.0.1:3082
+- App A: http://127.0.0.1:3081/hello-a
+- App B: http://127.0.0.1:3082/hello-b
 
-Each app has a hello page, an overview card, and a `/todos` page for adding,
+Each app has a hello page and a `/todos` page for adding,
 editing, completing, and deleting tasks. Tasks persist in that app's database.
 `@acme` is a placeholder package scope.
 
@@ -24,6 +24,23 @@ Start Docker before running `db:setup`. It creates missing app `.env` files from
 their examples, starts both databases, waits for health checks, and applies the
 committed migrations. Existing `.env` files and data are preserved. `dev` and
 `start` never create databases or run migrations automatically.
+
+## Web host and pages
+
+`plugin-web` provides shared providers, routing, development/build integration,
+and rendering. It does not render a homepage, navigation, or application layout.
+The examples keep `/hello-a`, `/hello-b`, and `/todos`; `/` is blank until an
+active plugin registers that path. A blank homepage is a successful response,
+not a missing-page error. Disabling its owner restores that blank fallback.
+
+Pages own their content, semantic containers, spacing, and navigation. The host
+keeps Tailwind/daisyUI available, and `title` configures the document title only.
+Errors retain minimal feedback and recovery; the host's default loading fallback
+is empty. Page components can show their own data-loading states.
+
+Only page contributions are supported; there is no `cards` registration API.
+Unmatched routes show a client-side not-found message; SPA document requests
+retain the usual HTML fallback rather than server-rendered HTTP page statuses.
 
 ## Layout
 
@@ -40,11 +57,11 @@ packages/
     src/client/             Todo page and web registration
   plugin-web/
     src/                    Discovery, Vite integration, build, and static serving
-    client/                 Shared React shell, routing, and overview card slot
+    client/                 React providers, page routing, and error boundaries
     bin/                    cordis-web build command
   plugin-hello-a/
     src/server/             Cordis entry and typed router
-    src/client/             Web entry, page, and overview card
+    src/client/             Web entry and page
   plugin-hello-b/
     src/server/
     src/client/
@@ -122,8 +139,7 @@ only by Cordis at runtime; discovery never starts business plugins.
 2. Export `./web` from its package manifest, pointing to
    `./src/client/index.ts`. Export `createPlugin({ queryClient, apiBase })`
    from that entry.
-3. Return `pages`, `cards`, or both. Pages specify `path`, `title`, and a lazy
-   `component`; cards specify `id`, `title`, and a lazy `component`.
+3. Return `pages`. Each page specifies `path`, `title`, and a lazy `component`.
    Pages may provide `load` to prefetch data. Provide `queryFilter` when the
    plugin uses TanStack Query so its cache can be cleaned on unload. Set
    `trpc.abortOnUnmount: true` in query options to cancel in-flight requests,
@@ -132,13 +148,14 @@ only by Cordis at runtime; discovery never starts business plugins.
    declare the plugin in that app's YAML. No frontend registration file is needed.
 
 The `@acme/plugin-web/types` export provides `WebHost`, `WebPlugin`, and
-contribution types. Keep router imports type-only and browser entries free of
+`WebPage`. Keep router imports type-only and browser entries free of
 Node.js imports. The existing typed client helper uses plain JSON; custom tRPC
 transformers must be configured at both ends.
 
-Page paths are literal paths, such as `/hello-a`. Each frontend plugin can be
-declared once per app; page paths and card IDs must be unique. Backend-only
-plugins omit the `./web` export. A UI-only plugin can return cards or pages
+Page paths are literal paths, such as `/hello-a` or `/`. Each frontend plugin can
+be declared once per app; page paths must be unique, including `/`. `/api`,
+`/assets`, and `/healthz` are reserved. Backend-only plugins omit the `./web`
+export. A UI-only plugin can return pages
 without registering an RPC router. A plugin may be reused in both apps.
 
 ## Hot reload and plugin lifecycle
@@ -147,16 +164,16 @@ without registering an RPC router. A plugin may be reused in both apps.
 - Backend edits reload the owning Cordis plugin. Business packages under
   `packages` are watched automatically; client and infrastructure code are excluded.
 - Adding or removing a configured plugin updates its frontend registration through
-  Vite HMR. The application shell and unaffected plugins stay mounted.
-- Adding `disabled: true` unloads the plugin's API, menu entries, pages, and cards.
+  Vite HMR. Shared providers and an unaffected current page stay mounted.
+- Adding `disabled: true` unloads the plugin's API and pages.
   Removing it restores them. Unloaded components lose their local state.
 - Plugin availability comes from Cordis lifecycle state over `/api/web/events`,
   independent of whether a plugin has an RPC router.
-- Pages and cards have individual loading and error boundaries. A broken component
-  does not remove the application shell or another plugin's card.
+- Page rendering has a Suspense boundary with an empty default fallback and an
+  error boundary with retry. Registry errors and lost connections retain minimal
+  feedback; error details are logged to the browser console.
 
-The overview exposes one card slot. The shell is shared source in plugin-web and
-can be customized there. Runtime, RPC infrastructure, database service, web server integration, and
+Runtime, RPC infrastructure, database service, web server integration, and
 dependency changes require a restart. Production does not watch source or YAML.
 
 ## Production

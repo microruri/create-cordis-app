@@ -1,20 +1,16 @@
-import { lazy, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { QueryClient } from "@tanstack/react-query";
-import type { Contribution, PluginFactory, WebPlugin } from "./types.ts";
+import type { PluginFactory, WebPage, WebPlugin } from "./types.ts";
 import { webStateSchema, type WebState } from "../src/shared.ts";
 
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30000, retry: false } },
 });
-function prepare<T extends Contribution>(item: T) {
-  return { ...item, Component: lazy(item.component) };
-}
 export interface Entry {
   name: string;
   factory: PluginFactory["createPlugin"];
   plugin: WebPlugin;
-  pages: ReturnType<typeof prepare<NonNullable<WebPlugin["pages"]>[number]>>[];
-  cards: ReturnType<typeof prepare<NonNullable<WebPlugin["cards"]>[number]>>[];
+  pages: WebPage[];
   generation: number;
 }
 let state: {
@@ -45,7 +41,6 @@ function clear(entry: Entry) {
 export function updateRegistry(factories: PluginFactory[]) {
   try {
     const paths = new Set<string>();
-    const ids = new Set<string>();
     const names = new Set<string>();
     const entries = factories.map(({ name, createPlugin }) => {
       if (names.has(name)) throw new Error(`Duplicate frontend plugin: ${name}`);
@@ -55,32 +50,27 @@ export function updateRegistry(factories: PluginFactory[]) {
         old?.factory === createPlugin ? old.plugin : createPlugin({ queryClient, apiBase: "/api" });
       for (const page of plugin.pages ?? []) {
         if (
-          !/^\/[a-zA-Z0-9_/-]+$/.test(page.path) ||
-          page.path.startsWith("/api/") ||
+          (page.path !== "/" && !/^\/[a-zA-Z0-9_/-]+$/.test(page.path)) ||
+          /^\/(?:api|assets|healthz)(?:\/|$)/i.test(page.path) ||
           paths.has(page.path)
         ) {
           throw new Error(`Invalid or duplicate page path "${page.path}" in ${name}`);
         }
         paths.add(page.path);
       }
-      for (const card of plugin.cards ?? []) {
-        if (!card.id || ids.has(card.id))
-          throw new Error(`Invalid or duplicate card ID "${card.id}" in ${name}`);
-        ids.add(card.id);
-      }
       if (old?.factory === createPlugin) return old;
       return {
         name,
         factory: createPlugin,
         plugin,
-        pages: (plugin.pages ?? []).map(prepare),
-        cards: (plugin.cards ?? []).map(prepare),
+        pages: plugin.pages ?? [],
         generation: (old?.generation ?? 0) + 1,
       };
     });
     for (const old of state.entries) if (!entries.includes(old)) clear(old);
     state = { ...state, entries, error: undefined };
   } catch (error) {
+    console.error(error);
     state = { ...state, error: error instanceof Error ? error.message : String(error) };
   }
   emit();

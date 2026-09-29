@@ -2,8 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import { renderToReadableStream } from "@vitejs/plugin-rsc/rsc/server";
 import type { RenderOptions, RscPayload, ServerPageProps } from "../src/types.ts";
 import { getPages, matchPage } from "./registry.ts";
-import { Shell, Overview, ErrorPage } from "./shell.tsx";
-import { Providers, PageBoundary } from "./providers.tsx";
+import { Providers, PageBoundary, ErrorPage } from "./providers.tsx";
 
 export function validate() {
   getPages();
@@ -24,21 +23,18 @@ export async function render({ cordis, request, web }: RenderOptions): Promise<R
     "Cache-Control": "no-store",
     Vary: "Accept",
   });
-  let content: ReactNode;
+  let content: ReactNode = null;
   let title = web.title;
   let status = 200;
   try {
-    if (url.pathname === "/") content = <Overview web={web} pages={pages} />;
-    else {
-      const match = matchPage(pages, url.pathname);
-      if (!match || !web.activePlugins.includes(match.page.plugin))
-        throw new Response(null, { status: 404 });
+    const match = matchPage(pages, url.pathname);
+    if (match && web.activePlugins.includes(match.page.plugin)) {
       const page = await match.page.component();
       const props: ServerPageProps = { cordis, request, url, params: match.params };
       await page.beforeRender?.(props);
       title = match.page.title + " | " + web.title;
       content = <page.default {...props} />;
-    }
+    } else if (url.pathname !== "/") throw new Response(null, { status: 404 });
   } catch (error) {
     if (request.signal.aborted) throw error;
     if (error instanceof Response) {
@@ -67,11 +63,9 @@ export async function render({ cordis, request, web }: RenderOptions): Promise<R
         </head>
         <body>
           <Providers>
-            <Shell web={web} pages={pages} pathname={url.pathname}>
-              <PageBoundary key={url.pathname + url.search}>
-                <Suspense fallback={<p role="status">Loading page...</p>}>{content}</Suspense>
-              </PageBoundary>
-            </Shell>
+            <PageBoundary key={url.pathname + url.search}>
+              <Suspense fallback={null}>{content}</Suspense>
+            </PageBoundary>
           </Providers>
         </body>
       </html>

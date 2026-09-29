@@ -42,7 +42,7 @@ pnpm dev
 | Template                                        | Includes                                                                                                                                             | Requirements                                        |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | [workspace](./cli/template/workspace/README.md) | Two independent Cordis apps, YAML configuration, shared runtime, plugin HMR, and build tooling                                                       | Node.js >=24.12.0 <25; pnpm 11.24.0                 |
-| [react-spa](./cli/template/react-spa/README.md) | Two Cordis apps with React SPA pages and cards, HTTP tRPC, Vite HMR, Tailwind CSS, daisyUI, and Drizzle/PostgreSQL todos                             | Node.js >=24.12.0 <25; pnpm 11.24.0; Docker Compose |
+| [react-spa](./cli/template/react-spa/README.md) | Two Cordis apps with React SPA pages, HTTP tRPC, Vite HMR, Tailwind CSS, daisyUI, and Drizzle/PostgreSQL todos                                       | Node.js >=24.12.0 <25; pnpm 11.24.0; Docker Compose |
 | [react-rsc](./cli/template/react-rsc/README.md) | Two Cordis apps with React Server Components and streaming SSR, typed server callers, HTTP tRPC, Tailwind CSS, daisyUI, and Drizzle/PostgreSQL todos | Node.js >=24.12.0 <25; pnpm 11.24.0; Docker Compose |
 
 To create the React RSC template from this checkout:

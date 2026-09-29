@@ -11,6 +11,9 @@ class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean 
   static getDerivedStateFromError() {
     return { failed: true };
   }
+  componentDidCatch(error: unknown) {
+    console.error(error);
+  }
   render() {
     if (this.state.failed)
       return (
@@ -20,7 +23,9 @@ class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean 
           </head>
           <body>
             <h1>Something went wrong</h1>
-            <a href="/">Reload the app</a>
+            <button type="button" onClick={() => location.reload()}>
+              Reload page
+            </button>
           </body>
         </html>
       );

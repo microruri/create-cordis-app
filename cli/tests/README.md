@@ -6,6 +6,9 @@ behavior, lifecycle, configuration errors, app-local environments, YAML reloads,
 and isolated plugin HMR in the workspace template. React SPA tests also cover typed
 RPC, input validation, plugin lifecycle streams, isolated application frontends,
 configuration discovery, build isolation, and production serving.
+Both web hosts also support an empty page registry and a plugin-owned `/`.
+Check the blank homepage in the browser, homepage enable/disable and duplicate
+routes, page error recovery, and the absence of built-in navigation or layout.
 React RSC tests build both apps in a temporary workspace, verify rendered data and HTTP
 behavior, RSC navigation responses, dynamic parameters, redirects, request
 isolation, disabled plugins, server-only boundaries, missing builds, and development
@@ -18,7 +21,7 @@ mutation invalidation, cancellation, streaming lifetimes, and stale responses.
 The SSR fixtures include a hydrated query and controls for the public navigation
 API; server checks verify fresh dehydrated data after a mutation.
 
-For frontend changes, also check browser Fast Refresh, card state preservation
+For frontend changes, also check browser Fast Refresh, page state preservation
 when another plugin changes, YAML enable/disable, and page-level errors.
 For SSR, check both hello forms for pending, success, and error states, and verify
 that their server-rendered greetings need no extra browser query. Also check
@@ -27,8 +30,7 @@ navigation, history, scroll restoration, server/client component updates, and th
 absence of business WebSockets or production event streams. Inspect browser
 bundles for server-only code, and verify production with only runtime dependencies.
 Also check that default links and explicit opt-outs make no request on hover or
-focus, while explicit opt-ins prefetch and reuse the request on click. Check navigation progress before response
-arrival, refresh preserving inputs and scroll, existing query hydration, mutation
+focus, while explicit opt-ins prefetch and reuse the request on click. Check the navigation hook's pending state before response arrival, refresh preserving inputs and scroll, existing query hydration, mutation
 invalidation of prefetched pages, replace navigation, and page-error retry. A
 prefetch must not change the current page or issue an extra request when consumed.
 

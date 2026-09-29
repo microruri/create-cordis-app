@@ -349,6 +349,25 @@ test("react-spa production rejects missing frontend builds and stale plugin mani
   await assert.rejects(f.start("app-a"), /Frontend plugins are not built/);
 });
 
+test("react-spa builds and serves without frontend plugins", async (t) => {
+  const f = await fixture(t);
+  const appRoot = join(f.target, "apps/app-a");
+  const config = join(appRoot, "cordis.yml");
+  await writeFile(
+    config,
+    (await readFile(config, "utf8")).replace(/    - id: hello\r?\n[\s\S]*?(?=    - id:|$)/g, ""),
+  );
+  assert.deepEqual((await discover(appRoot)).plugins, []);
+  await buildWeb(appRoot);
+  assert.deepEqual(JSON.parse(await readFile(join(appRoot, "dist/web-manifest.json"), "utf8")), []);
+  const app = await f.start("app-a");
+  const response = await fetch(app.url);
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /<div id="root"><\/div>/);
+  const events = await stream(app.url + "/api/web/events", f.cleanups);
+  assert.deepEqual((await events.next())?.plugins, []);
+});
+
 test("react-spa development reloads YAML and backend source without restarting the process", async (t) => {
   const f = await fixture(t);
   const env = { ...process.env, NODE_OPTIONS: "", NODE_ENV: "development" };
@@ -428,46 +447,46 @@ test("react-spa development reloads YAML and backend source without restarting t
 
 test("react-spa web lifecycle includes plugins without an RPC router", async (t) => {
   const f = await fixture(t);
-  const directory = join(f.target, "packages/plugin-card-only");
+  const directory = join(f.target, "packages/plugin-ui-only");
   await mkdir(directory);
   await writeFile(
     join(directory, "package.json"),
     JSON.stringify({
-      name: "@acme/plugin-card-only",
+      name: "@acme/plugin-ui-only",
       type: "module",
       exports: { ".": "./index.js", "./web": "./client.js" },
     }),
   );
   await writeFile(
     join(directory, "index.js"),
-    'export const name = "card-only"; export function apply() {}',
+    'export const name = "ui-only"; export function apply() {}',
   );
   await writeFile(
     join(directory, "client.js"),
-    "export function createPlugin() { return { cards: [] }; }",
+    "export function createPlugin() { return { pages: [] }; }",
   );
   await symlink(
     directory,
-    join(f.target, "apps/app-a/node_modules/@acme/plugin-card-only"),
+    join(f.target, "apps/app-a/node_modules/@acme/plugin-ui-only"),
     process.platform === "win32" ? "junction" : "dir",
   );
   const config = join(f.target, "apps/app-a/cordis.yml");
   await writeFile(
     config,
-    (await readFile(config, "utf8")) + '\n- id: card-only\n  name: "@acme/plugin-card-only"\n',
+    (await readFile(config, "utf8")) + '\n- id: ui-only\n  name: "@acme/plugin-ui-only"\n',
   );
   await writeFile(
     join(f.target, "apps/app-a/dist/web-manifest.json"),
-    JSON.stringify(["@acme/plugin-hello-a", "@acme/plugin-card-only"]),
+    JSON.stringify(["@acme/plugin-hello-a", "@acme/plugin-ui-only"]),
   );
   const app = await f.start("app-a");
   const events = await stream(app.url + "/api/web/events", f.cleanups);
   assert.deepEqual(
     (await events.next())?.plugins.map(({ name }) => name),
-    ["@acme/plugin-hello-a", "@acme/plugin-card-only"],
+    ["@acme/plugin-hello-a", "@acme/plugin-ui-only"],
   );
   const entry = [...app.ctx.get("loader")!.entries()].find(
-    (entry) => entry.options.name === "@acme/plugin-card-only",
+    (entry) => entry.options.name === "@acme/plugin-ui-only",
   )!;
   await entry.update({ disabled: true });
   assert.deepEqual(

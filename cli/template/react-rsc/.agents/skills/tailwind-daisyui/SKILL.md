@@ -13,6 +13,9 @@ existing Hello and Todos markup as small examples of the current visual language
 
 - Tailwind runs through the host's Vite plugin. The CSS entry owns Tailwind,
   daisyUI, and theme configuration; use that entry for shared changes.
+- Pages own their semantic containers, spacing, and navigation. The host imports
+  the stylesheet without adding an application layout; keep that entry present
+  for both blank documents and plugin pages.
 - Source detection is explicit (`source(none)` plus `@source`). Shared web code
   and business-plugin `src/web` directories are covered. Add a source path when
   moving UI into another package, and check its classes in a production build.

@@ -24,6 +24,23 @@ starts both databases, waits for health checks, and applies committed migrations
 Existing environment files and data are preserved. Neither `dev` nor `start`
 runs migrations automatically.
 
+## Web host and pages
+
+`plugin-web` provides shared providers, routing, development/build integration,
+and rendering. It does not render a homepage, navigation, or application layout.
+The examples keep `/hello-a`, `/hello-b`, and `/todos`; `/` is blank until an
+active plugin registers that path. A blank homepage is a successful response,
+not a missing-page error. Disabling its owner restores that blank fallback.
+
+Pages own their content, semantic containers, spacing, and navigation. The host
+keeps Tailwind/daisyUI available, and `title` configures the document title only.
+Errors retain minimal feedback and recovery; the host's default loading fallback
+is empty. Page components can show their own data-loading states.
+
+Use `Link`, `useRouter`, and `useNavigation` when pages need navigation.
+The host exposes navigation state without rendering a progress bar. Server
+errors before streaming preserve HTTP statuses; later errors use the page boundary.
+
 ## Working with coding agents
 
 [AGENTS.md](AGENTS.md) summarizes the project conventions and links to focused
@@ -44,7 +61,7 @@ packages/
   plugin-database/          App-scoped PostgreSQL pool and Drizzle service
   plugin-web/
     src/                    Discovery, Vite integration, build, and HTTP serving
-    web/                    RSC/SSR/browser entries, navigation, shell, and styles
+    web/                    RSC/SSR/browser entries, providers, navigation, and styles
   plugin-hello-a/
     src/server/             Cordis entry and tRPC router
     src/web/
@@ -131,8 +148,8 @@ export const pages = [
 ```
 
 A plugin can register several pages. Paths support static segments and named
-parameters such as `/items/$id`; static matches take priority. Static pages
-appear in navigation. Duplicate paths (including renamed parameters), duplicate
+parameters such as `/items/$id`; static matches take priority. `/` is available
+to a plugin page. Duplicate paths (including `/` and renamed parameters), duplicate
 IDs, and reserved paths fail validation. `/api`, `/assets`, and `/healthz`
 belong to the host.
 
@@ -317,7 +334,7 @@ change and refresh the page to discard old prefetches. Server Actions are not
 enabled.
 
 Declared but disabled plugins remain in the build so they can be enabled
-without rebuilding. Disabled pages return 404 and disappear from navigation.
+without rebuilding. Disabled pages return 404; a disabled homepage falls back to the blank `/`.
 New plugins or changed frontend code require a production rebuild.
 
 ## Development and deployment
@@ -349,7 +366,7 @@ Build before installing production-only dependencies. Keep migration files and
 to PostgreSQL.
 
 HTML and RSC responses use `Cache-Control: no-store` and `Vary: Accept`;
-hashed assets use immutable caching. Missing pages return 404. Missing assets
+hashed assets use immutable caching. Missing pages return 404, except the blank `/` fallback. Missing assets
 and APIs never become page HTML. A missing build or an unbuilt frontend plugin
 prevents startup.
 

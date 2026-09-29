@@ -1,6 +1,6 @@
 "use client";
-import { useContext, useEffect, useRef, type ComponentProps, type ReactNode } from "react";
-import { NavigationContext, useNavigation } from "./router-context.ts";
+import { useContext, useEffect, useRef, type ComponentProps } from "react";
+import { NavigationContext } from "./router-context.ts";
 import { pageUrl } from "./navigation-state.ts";
 
 export function Link({
@@ -69,30 +69,5 @@ export function Link({
         }
       }}
     />
-  );
-}
-export function NavigationContent({ children }: { children: ReactNode }) {
-  const { pending } = useNavigation();
-  return (
-    <>
-      <div
-        role="status"
-        aria-live="polite"
-        className="fixed top-0 inset-x-0 z-50 pointer-events-none"
-      >
-        {pending && (
-          <>
-            <progress
-              aria-label="Loading page"
-              className="progress progress-primary block w-full rounded-none h-1"
-            />
-            <span className="sr-only">Loading page...</span>
-          </>
-        )}
-      </div>
-      <main aria-busy={pending} className="flex-1 min-w-0 p-4 md:p-8">
-        {children}
-      </main>
-    </>
   );
 }

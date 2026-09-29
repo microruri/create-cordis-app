@@ -93,7 +93,7 @@ export default function Todos({ api, initial }: { api: Api; initial?: InitialDat
     create.mutate({ title });
   }
   return (
-    <section className="card bg-base-100 border border-base-300 shadow-sm p-6 md:p-8 max-w-4xl">
+    <main className="card bg-base-100 border border-base-300 shadow-sm p-6 md:p-8 max-w-4xl mx-auto my-8">
       <p className="text-xs font-semibold uppercase tracking-widest text-base-content/60">
         Your tasks
       </p>
@@ -141,6 +141,6 @@ export default function Todos({ api, initial }: { api: Api; initial?: InitialDat
           <TodoRow key={todo.id + ":" + todo.title} todo={todo} api={api} refresh={refresh} />
         ))}
       </ul>
-    </section>
+    </main>
   );
 }

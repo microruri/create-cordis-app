@@ -18,11 +18,11 @@ async function Content({ cordis, request }: ServerPageProps) {
 }
 export default function Page(props: ServerPageProps) {
   return (
-    <section className="card bg-base-100 border border-base-300 shadow-sm p-6 md:p-8 max-w-4xl">
+    <main className="card bg-base-100 border border-base-300 shadow-sm p-6 md:p-8 max-w-4xl mx-auto my-8">
       <h1 className="text-3xl font-semibold my-4">Hello A</h1>
       <Suspense fallback={<p role="status">Loading greeting...</p>}>
         <Content {...props} />
       </Suspense>
-    </section>
+    </main>
   );
 }

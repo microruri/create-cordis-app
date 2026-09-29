@@ -19,6 +19,10 @@ manager, and dependency versions; check installed versions before using new APIs
   the services they use and release resources through their Cordis scope.
 - Frontend registration comes from each configured package's `./web` export.
   Follow the existing page manifest rather than adding an app-level page list.
+- The web host supplies providers and rendering without an application layout or
+  navigation UI. Pages own their markup and spacing. `/` is blank unless an active
+  plugin registers it; duplicate homepage routes are rejected like other routes.
+  Keep the host's minimal error handling and empty default loading fallback.
 
 ## Boundaries and shared state
 

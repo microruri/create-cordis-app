@@ -1,14 +1,14 @@
 import type { ComponentType } from "react";
 import type { QueryClient, QueryFilters } from "@tanstack/react-query";
 
-export interface Contribution {
+export interface WebPage {
+  path: string;
   title: string;
   component: () => Promise<{ default: ComponentType }>;
   load?: () => Promise<unknown>;
 }
 export interface WebPlugin {
-  pages?: (Contribution & { path: string })[];
-  cards?: (Contribution & { id: string })[];
+  pages?: WebPage[];
   queryFilter?: QueryFilters;
 }
 export interface WebHost {

@@ -15,6 +15,9 @@ documents the manifest, dynamic parameters, and request-local props.
 - Export pages through the package's `./web` manifest, with lazy component
   importers. A plugin may provide several pages. Use the host's `WebPage` and
   `ServerPageProps` types and let its registry validate routes.
+- `/` is an ordinary plugin route with an empty fallback when no active plugin
+  owns it. Pages supply their own layout and navigation. Keep shared providers
+  mounted across navigation; the host does not add visible application chrome.
 - Keep server reads in server components; mark interactive boundaries with
   `"use client"`. Pass serializable data across the boundary. Leave server
   contexts and database code in the server graph.

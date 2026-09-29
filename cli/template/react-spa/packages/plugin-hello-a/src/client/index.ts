@@ -23,15 +23,5 @@ export function createPlugin({ queryClient, apiBase }: WebHost): WebPlugin {
           })),
       },
     ],
-    cards: [
-      {
-        id: "hello-a",
-        title: "Hello A",
-        component: () =>
-          import("./card.tsx").then(({ default: Card }) => ({
-            default: () => createElement(Card, { api }),
-          })),
-      },
-    ],
   } satisfies WebPlugin;
 }

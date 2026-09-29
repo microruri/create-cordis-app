@@ -10,9 +10,10 @@ export function getPages(): RegisteredPage[] {
         throw new Error(`Invalid or duplicate page id ${name}:${page.id}`);
       ids.add(page.id);
       if (
-        !/^\/(?:[a-zA-Z0-9_-]+|\$[a-zA-Z][a-zA-Z0-9_]*)(?:\/(?:[a-zA-Z0-9_-]+|\$[a-zA-Z][a-zA-Z0-9_]*))*$/.test(
-          page.path,
-        ) ||
+        (page.path !== "/" &&
+          !/^\/(?:[a-zA-Z0-9_-]+|\$[a-zA-Z][a-zA-Z0-9_]*)(?:\/(?:[a-zA-Z0-9_-]+|\$[a-zA-Z][a-zA-Z0-9_]*))*$/.test(
+            page.path,
+          )) ||
         /^\/(?:api|assets|healthz)(?:\/|$)/i.test(page.path)
       )
         throw new Error(`Invalid or reserved page path ${page.path} in ${name}`);
@@ -45,7 +46,7 @@ export function matchPage(pages: RegisteredPage[], pathname: string) {
     return 0;
   });
   for (const page of candidates) {
-    const pattern = page.path.split("/").slice(1);
+    const pattern = page.path === "/" ? [] : page.path.split("/").slice(1);
     if (pattern.length !== segments.length) continue;
     const params: Record<string, string> = {};
     if (
