@@ -58,7 +58,7 @@ apps/
 packages/
   runtime/                  Cordis startup and shutdown
   plugin-rpc/               Typed HTTP APIs, server callers, and browser clients
-  plugin-database/          App-scoped PostgreSQL pool and Drizzle service
+  plugin-database/          Schema-free app-scoped PostgreSQL pool service
   plugin-web/
     src/                    Discovery, Vite integration, build, and HTTP serving
     web/                    RSC/SSR/browser entries, providers, navigation, and styles
@@ -69,9 +69,9 @@ packages/
       hello-a/Page.tsx       Server page with async data and Suspense
       hello-a/Greeting.tsx   Client component with a typed mutation form
   plugin-hello-b/
-  plugin-todos/             Database schema, CRUD API, and server/client components
-drizzle/                    SQL migrations and their journal
-scripts/database.mjs        Local database setup and ORM migration runner
+  plugin-todos/             Todo schema and service, CRUD API, and server/client components
+  app-database/             App schema aggregate and committed SQL migrations
+scripts/database.mjs        Local database setup and per-app migration runner
 compose.yaml                Two independent local PostgreSQL services
 ```
 
@@ -81,19 +81,19 @@ provide reusable code; there is no separate web application.
 
 ## Commands
 
-| Command                                                             | Purpose                                           |
-| ------------------------------------------------------------------- | ------------------------------------------------- |
-| `pnpm dev:app-a`, `pnpm dev:app-b`, `pnpm dev`                      | Develop one or both apps                          |
-| `pnpm build:app-a`, `pnpm build:app-b`, `pnpm build`                | Build apps and dependencies                       |
-| `pnpm start:app-a`, `pnpm start:app-b`, `pnpm start`                | Start built apps                                  |
-| `pnpm typecheck`                                                    | Check server and browser TypeScript               |
-| `pnpm lint`, `pnpm lint:fix`                                        | Check or fix with Oxlint                          |
-| `pnpm format`, `pnpm format:check`                                  | Format or check with Oxfmt                        |
-| `pnpm clean`                                                        | Remove dependencies, builds, and caches           |
-| `pnpm db:setup`                                                     | Prepare environment, start databases, and migrate |
-| `pnpm db:up`, `pnpm db:down`                                        | Start or stop databases, preserving data          |
-| `pnpm db:new add_users`                                             | Create an empty SQL migration and journal entry   |
-| `pnpm db:migrate:app-a`, `pnpm db:migrate:app-b`, `pnpm db:migrate` | Migrate one or both databases                     |
+| Command                                                             | Purpose                                            |
+| ------------------------------------------------------------------- | -------------------------------------------------- |
+| `pnpm dev:app-a`, `pnpm dev:app-b`, `pnpm dev`                      | Develop one or both apps                           |
+| `pnpm build:app-a`, `pnpm build:app-b`, `pnpm build`                | Build apps and dependencies                        |
+| `pnpm start:app-a`, `pnpm start:app-b`, `pnpm start`                | Start built apps                                   |
+| `pnpm typecheck`                                                    | Check server and browser TypeScript                |
+| `pnpm lint`, `pnpm lint:fix`                                        | Check or fix with Oxlint                           |
+| `pnpm format`, `pnpm format:check`                                  | Format or check with Oxfmt                         |
+| `pnpm clean`                                                        | Remove dependencies, builds, and caches            |
+| `pnpm db:setup`                                                     | Prepare environment, start databases, and migrate  |
+| `pnpm db:up`, `pnpm db:down`                                        | Start or stop databases, preserving data           |
+| `pnpm db:new add_users`                                             | Create an empty SQL migration in the shared stream |
+| `pnpm db:migrate:app-a`, `pnpm db:migrate:app-b`, `pnpm db:migrate` | Migrate one or both databases                      |
 
 Dev and start use pnpm directly; Turbo orchestrates builds with independent app
 outputs. Lefthook checks staged files and runs typechecking before a push.
@@ -361,9 +361,9 @@ server entry without loading Vite.
 Deploy the workspace layout, package manifests, production dependencies,
 backend builds, app YAML files, complete `dist/web`, and
 `dist/web-manifest.json`. These are workspace builds, not standalone bundles.
-Build before installing production-only dependencies. Keep migration files and
-`scripts/database.mjs` in the migration environment. Building never connects
-to PostgreSQL.
+Build before installing production-only dependencies. Keep the
+`@acme/app-database` package and `scripts/database.mjs` in the migration
+environment. Building never connects to PostgreSQL.
 
 HTML and RSC responses use `Cache-Control: no-store` and `Vary: Accept`;
 hashed assets use immutable caching. Missing pages return 404, except the blank `/` fallback. Missing assets
@@ -389,27 +389,81 @@ Local credentials are `acme` / `acme`:
 `APP_A_DB_PORT` / `APP_B_DB_PORT` for Compose and update app-local
 `DATABASE_URL` values. A shell-wide `DATABASE_URL` overrides both apps' files.
 
-`plugin-database` owns a pool per app and exposes `ctx.database.db`.
-Business plugins declare `inject = ["database", "rpc"]`, capture their scoped
-database handle during setup, and pass it into their router factory. The pool
-closes when its service stops. An unavailable database fails startup.
+`plugin-database` is generic and schema-free: it owns one connection pool per
+app, exposes it as `ctx.database.db`, and closes the pool when its service
+stops. An unavailable database fails startup. It never imports table schemas;
+each business plugin owns the schema for its own tables.
 
-Migration execution uses Drizzle ORM's PostgreSQL migrator; there is no schema
-diff generator. To change the database:
+`plugin-todos` shows the ownership pattern. Its schema stays in
+`src/server/schema.ts` and is exported server-only as
+`@acme/plugin-todos/schema`. A `ctx.todos` service provides `list()` plus the
+validated writes `create()`, `update()`, and `delete()`, each accepting an
+optional `{ tx }` transaction. The tRPC router is a thin adapter over that
+service, registered through a nested optional `ctx.inject(["rpc"], ...)`
+callback, so the service also works without RPC. Consumers add the context
+augmentation with `import type {} from "@acme/plugin-todos"`, declare
+`inject = ["database", "todos"]`, and call the service instead of writing
+their own SQL:
 
-1. Update the business plugin's TypeScript schema.
+```ts
+const created = await ctx.todos.create({ title: "From another plugin" });
+await ctx.todos.update({ id: created.id, completed: true });
+```
+
+Transactions span one app only: one process, one pool, one database. Writes
+go through the owning service so validation stays in one place; direct reads
+and joins through the public schema are fine. Another plugin in the same app
+can compose two owned creates with a raw read inside one transaction:
+
+```ts
+import { todos } from "@acme/plugin-todos/schema";
+
+await ctx.database.db.transaction(async (tx) => {
+  await ctx.todos.create({ title: "First" }, { tx });
+  await ctx.todos.create({ title: "Second" }, { tx });
+  const rows = await tx.select().from(todos);
+});
+```
+
+Keep schema imports in server code; the browser build rejects them. Package
+exports use the normal development/production conditions.
+
+`@acme/app-database` is the app's single data description: `.` re-exports the
+runtime schema aggregate as one server-only import, and `./migrations`
+describes the committed SQL in `packages/app-database/drizzle`. Data-owning
+plugins never import the package, so the dependency graph stays cycle-free.
+Each app declares its migration stream and depends on it:
+
+```json
+"database": {
+  "migrations": "@acme/app-database/migrations"
+}
+```
+
+`scripts/database.mjs` stays at the workspace root, owns the environment
+files, Compose, and the Drizzle migrator, and resolves that field from each
+app's own dependency graph. `db:migrate` applies each app's declared folder
+explicitly. Only `migrate` accepts an optional app name; `setup`, `up`, and
+`down` operate on both databases. `pnpm db:new <name>` creates one migration while both apps share
+a stream and fails when their folders diverge; split the history per app and
+run the per-app `db:migrate` commands explicitly at that point.
+
+Migration execution uses Drizzle ORM's PostgreSQL migrator; there is no
+Drizzle Kit and no schema diff generator. To change the database:
+
+1. Update the owning plugin's TypeScript schema.
 2. Run `pnpm db:new add_users` and write the corresponding SQL in the new file.
 3. Use `--> statement-breakpoint` between statements where needed. Review SQL.
 4. Run `pnpm db:migrate` or the app-specific command.
-5. Commit the schema, SQL, and `drizzle/meta/_journal.json` together.
+5. Commit the schema, SQL, and journal update together.
 
 Never edit an already applied migration or its journal timestamp. New SQL runs
 transactionally; a PostgreSQL advisory lock serializes migration runners per
 database. There is no automatic rollback command or schema generation.
 
-Both databases receive the workspace schema even if a plugin is disabled.
-Disabling a plugin never deletes its data. Schema removal requires an explicit
-SQL migration. Use separate migration histories if the apps later diverge.
+Both databases receive the same history even if a plugin is disabled.
+Disabling a plugin removes its services and routes at runtime, never its
+tables or data. Schema removal requires an explicit SQL migration.
 
 ## Styling
 

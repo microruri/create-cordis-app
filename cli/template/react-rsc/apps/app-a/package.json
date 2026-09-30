@@ -7,6 +7,9 @@
     "dev": "node --expose-internals --conditions=development src/index.ts --dev",
     "start": "node dist/index.js"
   },
+  "database": {
+    "migrations": "@acme/app-database/migrations"
+  },
   "dependencies": {
     "@acme/plugin-hello-a": "workspace:*",
     "@acme/runtime": "workspace:*",
@@ -22,7 +25,8 @@
     "react-dom": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@acme/plugin-database": "workspace:*",
-    "@acme/plugin-todos": "workspace:*"
+    "@acme/plugin-todos": "workspace:*",
+    "@acme/app-database": "workspace:*"
   },
   "devDependencies": {
     "@cordisjs/plugin-hmr": "catalog:",

@@ -11,7 +11,7 @@ const registryId = "virtual:cordis-pages";
 
 export function webConfig(appRoot: string, entries: () => WebEntry[]): InlineConfig {
   function serverOnly(id: string) {
-    return /(?:\/src\/server\/|\.server\.)/.test(normalizePath(id));
+    return /(?:\/(?:src|dist)\/server\/|\.server\.)/.test(normalizePath(id));
   }
   const registry: Plugin = {
     name: "cordis-pages",
@@ -20,7 +20,9 @@ export function webConfig(appRoot: string, entries: () => WebEntry[]): InlineCon
       if (
         this.environment.name === "client" &&
         (serverOnly(id) ||
-          /^(?:node:|pg(?:\/|$)|drizzle-orm(?:\/|$)|@acme\/plugin-database(?:\/|$))/.test(id))
+          /^(?:node:|pg(?:\/|$)|drizzle-orm(?:\/|$)|@acme\/(?:plugin-database|app-database)(?:\/|$)|@acme\/plugin-[^/]+\/schema$)/.test(
+            id,
+          ))
       )
         throw new Error("Server-only module imported by the browser: " + id);
       if (id === registryId) {

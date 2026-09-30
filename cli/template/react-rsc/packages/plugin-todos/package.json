@@ -11,6 +11,11 @@
       "development": "./src/server/index.ts",
       "default": "./dist/server/index.js"
     },
+    "./schema": {
+      "types": "./src/server/schema.ts",
+      "development": "./src/server/schema.ts",
+      "default": "./dist/server/schema.js"
+    },
     "./router": {
       "types": "./src/server/router.ts"
     },

@@ -11,6 +11,13 @@ declare module "cordis" {
 export interface Config {
   url: string;
 }
+
+/** The transaction handle passed to `database.db.transaction` callbacks. */
+export type DatabaseTransaction = Parameters<Parameters<NodePgDatabase["transaction"]>[0]>[0];
+
+/** A schema-free query handle: the shared database or one of its transactions. */
+export type DatabaseExecutor = NodePgDatabase | DatabaseTransaction;
+
 export default class Database extends Service {
   db: NodePgDatabase;
   private pool: Pool;

@@ -17,6 +17,10 @@ manager, and dependency versions; check installed versions before using new APIs
 - `packages/runtime` starts Cordis; `plugin-web`, `plugin-rpc`, and
   `plugin-database` own the shared infrastructure. Business plugins declare
   the services they use and release resources through their Cordis scope.
+- `plugin-database` is a schema-free, app-scoped connection pool. Table schemas
+  live with their owning business plugin; `@acme/app-database` aggregates the
+  app's schemas and owns the committed SQL migrations that each app selects
+  through its `package.json` `database.migrations` field.
 - Frontend registration comes from each configured package's `./web` export.
   Follow the existing page manifest rather than adding an app-level page list.
 - The web host supplies providers and rendering without an application layout or
@@ -30,6 +34,16 @@ Keep backend logic in `src/server`; page modules in `src/web` are server
 components by default. Use `"use client"` for interactive components and
 `server-only` for server page modules. Import backend types with `import type`.
 Keep database handles, Cordis contexts, and requests on the server.
+
+Data ownership follows the plugin that declares a table. Write through the
+owning service (`ctx.todos`), which owns validation and accepts an optional
+`{ tx }` for same-app transactions; direct reads and joins through the public
+schema (`@acme/plugin-todos/schema`, or the `@acme/app-database` aggregate for
+the whole app) are fine. Consumers add `import type {} from
+"@acme/plugin-todos"` and `inject = ["database", "todos"]`. Keep schema
+imports server-only; the client build rejects them. The plugins that own
+tables never import `@acme/app-database` back, so the dependency graph stays
+cycle-free.
 
 Use package exports instead of importing another package's internal files.
 The web host exposes `@acme/plugin-web/client` for `Link`, navigation hooks, and

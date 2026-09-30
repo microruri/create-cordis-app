@@ -12,8 +12,12 @@ The [query guide](../../../README.md#query-data-and-refresh) explains ownership.
 ## API and data ownership
 
 - Define procedures with the host's `t` from `@acme/plugin-rpc` and validate
-  inputs as in the existing Zod schemas. Register routers under their plugin ID
-  and export router types for `import type` in browser modules.
+  inputs as in the existing Zod schemas. When a plugin owns data, keep that
+  validation in its service and make the router a thin adapter over service
+  calls such as `ctx.todos`; register it inside a nested
+  `ctx.inject(["rpc"], ...)` callback so the service also works without RPC.
+  Register routers under their plugin ID and export router types for
+  `import type` in browser modules.
 - Server pages use `cordis.rpc.caller<Router>(id, request)`: it executes in process
   with the plugin context and current request. Avoid HTTP calls back to the same
   app for these reads.

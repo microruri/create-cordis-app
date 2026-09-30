@@ -6,3 +6,6 @@ export const todos = pgTable("todos", {
   completed: boolean().default(false).notNull(),
   createdAt: timestamp({ withTimezone: true, mode: "string" }).defaultNow().notNull(),
 });
+
+export type Todo = typeof todos.$inferSelect;
+export type NewTodo = typeof todos.$inferInsert;
