@@ -1,41 +1,8 @@
 # CLI and template tests
 
-These tests belong to the scaffolder and are not included in generated projects or
-the published CLI package. They cover CLI project creation and errors, plus HTTP
-behavior, lifecycle, configuration errors, app-local environments, YAML reloads,
-and isolated plugin HMR in the workspace template. React SPA tests also cover typed
-RPC, input validation, plugin lifecycle streams, isolated application frontends,
-configuration discovery, build isolation, and production serving.
-Both web hosts also support an empty page registry and a plugin-owned `/`.
-Check the blank homepage in the browser, homepage enable/disable and duplicate
-routes, page error recovery, and the absence of built-in navigation or layout.
-React RSC tests build both apps in a temporary workspace, verify rendered data and HTTP
-behavior, RSC navigation responses, dynamic parameters, redirects, request
-isolation, disabled plugins, server-only boundaries, missing builds, and development
-reloads. They run each app in a separate process, with independent SSR builds,
-and check shutdown with an active HMR connection. A gated async component verifies
-that the shell arrives before data resolves in both development and production;
-disconnecting the request cancels its work.
-Navigation tests cover speculative request reuse, expiry, bounded eviction,
-mutation invalidation, cancellation, streaming lifetimes, and stale responses.
-The SSR fixtures include a hydrated query and controls for the public navigation
-API; server checks verify fresh dehydrated data after a mutation.
-
-For frontend changes, also check browser Fast Refresh, page state preservation
-when another plugin changes, YAML enable/disable, and page-level errors.
-For SSR, check both hello forms for pending, success, and error states, and verify
-that their server-rendered greetings need no extra browser query. Also check
-Todos hydration without an extra initial RPC request, client
-navigation, history, scroll restoration, server/client component updates, and the
-absence of business WebSockets or production event streams. Inspect browser
-bundles for server-only code, and verify production with only runtime dependencies.
-Also check that default links and explicit opt-outs make no request on hover or
-focus, while explicit opt-ins prefetch and reuse the request on click. Check the navigation hook's pending state before response arrival, refresh preserving inputs and scroll, existing query hydration, mutation
-invalidation of prefetched pages, replace navigation, and page-error retry. A
-prefetch must not change the current page or issue an extra request when consumed.
-
-Use Node.js 24.12.0 or newer within the 24.x line and pnpm 11.24.0. From the
-repository root, install the CLI and each independent template workspace:
+These tests belong to the scaffolder and are not shipped with generated projects.
+Use Node.js 24.12.0 or newer within the 24.x line and pnpm 11.24.0.
+Install dependencies for the CLI and each independent template workspace:
 
 ```sh
 pnpm install
@@ -45,21 +12,34 @@ pnpm --dir cli/template/react-rsc install
 pnpm test
 ```
 
-`pnpm test` first builds the CLI, then discovers all `*.test.ts` files under
-`cli/tests`, including nested directories. Add tests using this naming convention;
-no script changes are needed. `pnpm lint` and `pnpm typecheck` also check the entire
-tests directory.
-The TypeScript configuration inherits the template's compiler options.
+The test command builds the CLI and discovers all `*.test.ts` files.
+`pnpm typecheck` and `pnpm lint` also check the test directory.
 
-The workspace integration tests copy source and configuration into temporary
-workspaces and link dependencies to the template's installed packages. Source files
-and configuration in the template are not modified. Run the suite when changing
-the template or upgrading Cordis, its plugins, or Node.js.
+## Organization
 
-## PostgreSQL integration tests
+- `cli.test.ts`: generated files, CLI arguments, and existing-directory protection.
+- `workspace.test.ts`: HTTP routes, app environments, plugin lifecycle, and HMR.
+- `react-spa.test.ts`: RPC, frontend registration, production assets, and HMR.
+- `react-rsc.test.ts`: production and development rendering, streaming, routing,
+  request isolation, server-only boundaries, and plugin reloads.
+- `navigation.test.ts`: in-memory navigation, cancellation, prefetch, and cache races.
+- `database.test.ts`: migration files, plus optional PostgreSQL integration.
 
-The default suite stays independent of Docker. To also run real database tests,
-start Docker and opt in from PowerShell:
+[helpers.ts](helpers.ts) shares temporary-directory cleanup, source copying,
+workspace dependency links, polling, and child-process management. Assertions and
+template-specific setup stay in each test. Fixtures use isolated copies of source
+and configuration, linking external dependencies to installed template packages.
+Database integration tests exercise projects generated by the CLI.
+
+The `.mjs` files in `fixtures` run directly inside those temporary projects:
+`ssr-runner.mjs` starts the RSC host; `database-runner.mjs` starts an app and
+controls its plugins; `todos-consumer.mjs` verifies service calls and cross-table
+transactions from another plugin. The `.tsx` fixtures supply test pages.
+They do not need a separate test build.
+
+## PostgreSQL integration
+
+The default suite needs no Docker. To include real databases, start Docker and run:
 
 ```powershell
 $env:CCA_TEST_DATABASE = "1"
@@ -67,18 +47,28 @@ pnpm test
 Remove-Item Env:CCA_TEST_DATABASE
 ```
 
-On a POSIX shell, use `CCA_TEST_DATABASE=1 pnpm test`. To run only the database
-tests after `pnpm build`, set the variable and run:
+On POSIX, use `CCA_TEST_DATABASE=1 pnpm test`. To run only database tests after
+`pnpm build`, set the variable and run:
 
 ```sh
 node --expose-internals --conditions=development --test cli/tests/database.test.ts
 ```
 
-These tests generate both fullstack templates with the CLI, start isolated
-temporary Compose projects on dynamically allocated ports, and clean up their
-own containers and volumes. They verify repeated setup, transaction rollback,
-concurrent migration runners, migration history, CRUD and
-validation, app isolation, persistence after restart, SSR data, plugin lifecycle,
-connection-pool reuse during HMR, and connection cleanup on shutdown. They never
-use the template workspaces' database volumes. Docker must be able to pull
-`postgres:17-alpine` on the first run.
+Both fullstack templates use temporary Compose projects and dynamic ports. Tests
+cover repeated setup, failed and concurrent migrations, CRUD, validation, app
+isolation, restart persistence, SSR data, plugin lifecycle, pool reuse, and
+shutdown cleanup. RSC also checks direct service calls, transaction commit and
+rollback, and service availability with RPC disabled.
+
+The suite removes its own containers, volumes, and temporary files. It never uses
+the template workspaces' database volumes. Docker must be able to pull
+`postgres:17-alpine` on its first run.
+
+## Browser checks
+
+These are Node and HTTP tests, not browser automation. For frontend changes, also
+check hydration, both hello forms and Todos mutations, Fast Refresh and retained
+input state, page errors, plugin enable/disable, and the blank default homepage.
+Verify navigation, history, scroll, explicit prefetch opt-ins, mutation refresh,
+and retry behavior in a browser. Confirm server-only code stays out of browser
+bundles and production works with runtime dependencies only.

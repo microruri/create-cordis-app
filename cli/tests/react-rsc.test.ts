@@ -1,85 +1,18 @@
+import { temporary, copyTemplate, linkDependencies, eventually, nodeProcess } from "./helpers.ts";
 import assert from "node:assert/strict";
-import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  realpath,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
-import { tmpdir } from "node:os";
+import { cp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 import { test, type TestContext } from "node:test";
 
 const root = fileURLToPath(new URL("../template/react-rsc/", import.meta.url));
 
-async function eventually(check: () => Promise<void>) {
-  const deadline = Date.now() + 30000;
-  let error: unknown;
-  while (Date.now() < deadline) {
-    try {
-      await check();
-      return;
-    } catch (cause) {
-      error = cause;
-    }
-    await delay(150);
-  }
-  throw error;
-}
-
 async function fixture(t: TestContext) {
-  const target = await mkdtemp(join(tmpdir(), "cca-react-rsc-with spaces-"));
-  const cleanups: (() => Promise<unknown> | void)[] = [];
-  t.after(async () => {
-    for (const cleanup of cleanups.reverse()) await cleanup();
-    assert.equal(dirname(resolve(target)), resolve(tmpdir()));
-    assert.ok(basename(target).startsWith("cca-react-rsc-with spaces-"));
-    await rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-  });
-  await cp(root, target, {
-    recursive: true,
-    filter: (source) =>
-      !["node_modules", "dist", ".turbo", ".cordis", "pnpm-lock.yaml"].includes(basename(source)) &&
-      (!basename(source).startsWith(".env") || basename(source) === ".env.example"),
-  });
-  const directories: string[] = [];
-  const workspace = new Map<string, string>();
-  for (const parent of ["apps", "packages"]) {
-    for (const entry of await readdir(join(root, parent), { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const directory = `${parent}/${entry.name}`;
-      if (!existsSync(join(root, directory, "package.json"))) continue;
-      directories.push(directory);
-      const pkg = JSON.parse(await readFile(join(root, directory, "package.json"), "utf8"));
-      workspace.set(pkg.name, join(target, directory));
-    }
-  }
-  for (const directory of directories) {
-    const pkg = JSON.parse(await readFile(join(root, directory, "package.json"), "utf8"));
-    for (const name of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })) {
-      const link = join(target, directory, "node_modules", name);
-      await mkdir(dirname(link), { recursive: true });
-      await symlink(
-        workspace.get(name) ?? (await realpath(join(root, directory, "node_modules", name))),
-        link,
-        process.platform === "win32" ? "junction" : "dir",
-      );
-    }
-  }
-  await symlink(
-    join(root, "node_modules"),
-    join(target, "node_modules"),
-    process.platform === "win32" ? "junction" : "dir",
-  );
+  const { target, cleanups } = await temporary(t, "cca-react-rsc-with spaces-");
+  await copyTemplate(root, target);
+  const directories = await linkDependencies(root, target);
   await cp(new URL("./fixtures/ssr-runner.mjs", import.meta.url), join(target, "runner.mjs"));
   for (const app of ["app-a", "app-b"]) {
     const path = join(target, "apps", app, "cordis.yml");
@@ -97,27 +30,9 @@ async function fixture(t: TestContext) {
       NODE_ENV: development ? "development" : "production",
     };
     for (const key of ["HOST", "PORT", "GREETING"]) delete env[key];
-    const process = spawn(globalThis.process.execPath, args, {
-      cwd,
-      env,
-      stdio: ["ignore", "pipe", "pipe", "ipc"],
-    });
-    let logs = "";
-    process.stdout!.on("data", (chunk) => {
-      logs += chunk;
-    });
-    process.stderr!.on("data", (chunk) => {
-      logs += chunk;
-    });
-    const exit = once(process, "exit");
-    cleanups.push(async () => {
-      if (process.exitCode === null && process.signalCode === null) {
-        process.kill();
-        await exit;
-      }
-    });
-    return { process, exit, logs: () => logs };
+    return nodeProcess(args, cwd, env, cleanups);
   }
+
   async function start(app: string, development = false) {
     const running = child(
       [
@@ -129,27 +44,11 @@ async function fixture(t: TestContext) {
       target,
       development,
     );
-    let url = "";
-    running.process.on("message", (message: { ready?: string }) => {
-      url = message.ready ?? url;
-    });
-    await eventually(async () => {
-      assert.ok(url, running.logs());
-    });
-    return {
-      ...running,
-      url,
-      async close() {
-        running.process.send("close");
-        const timeout = setTimeout(() => running.process.kill(), 5000);
-        try {
-          assert.deepEqual(await running.exit, [0, null], running.logs());
-        } finally {
-          clearTimeout(timeout);
-        }
-      },
-    };
+    const reply = await running.message();
+    assert.ok(reply?.ready, running.logs());
+    return { ...running, url: reply.ready };
   }
+
   async function build() {
     for (const directory of directories) {
       const result = child(
@@ -257,7 +156,48 @@ test(
   async (t) => {
     const f = await fixture(t);
     const manifest = await addRequestPages(f.target);
+    await writeFile(
+      join(f.target, "apps/app-a/src/consumer.ts"),
+      `
+import type { Context } from "cordis";
+import type {} from "@acme/plugin-todos";
+import { todos } from "@acme/plugin-todos/schema";
+export const inject = ["database", "todos"];
+export async function apply(ctx: Context) {
+  await ctx.database.db.transaction(async (tx) => {
+    const todo = await ctx.todos.create({ title: "Typed consumer" }, { tx });
+    await ctx.todos.update({ id: todo.id, completed: true }, { tx });
+    const rows = await ctx.todos.list({ tx });
+    const title: string = rows[0]!.title;
+    await tx.select({ id: todos.id, title: todos.title }).from(todos);
+    await ctx.todos.delete({ id: todo.id }, { tx });
+    // @ts-expect-error Titles are strings for direct callers too.
+    await ctx.todos.create({ title: 123 });
+    return title;
+  });
+}
+`,
+    );
+    const types = f.child([
+      join(f.target, "node_modules/typescript/bin/tsc"),
+      "--noEmit",
+      "-p",
+      "tsconfig.server.json",
+    ]);
+    assert.deepEqual(await types.exit, [0, null], types.logs());
     await f.build();
+    for (const development of [false, true]) {
+      const schema = f.child(
+        [
+          ...(development ? ["--conditions=development"] : []),
+          "--input-type=module",
+          "-e",
+          'import assert from "node:assert/strict"; import { todos } from "@acme/plugin-todos/schema"; import { todos as modelTodos } from "@acme/app-database"; assert.equal(todos, modelTodos); assert.ok(todos.id);',
+        ],
+        join(f.target, "apps/app-a"),
+      );
+      assert.deepEqual(await schema.exit, [0, null], schema.logs());
+    }
     for (const suffix of ["a", "b"]) {
       const app = await f.start("app-" + suffix);
       await assertBlankHome(app.url);
@@ -398,17 +338,27 @@ test(
     assert.match(duplicate.logs(), /Duplicate page route/);
     await writeFile(manifest, originalManifest);
     const browserPage = join(f.target, "packages/plugin-hello-a/src/web/hello-a/Greeting.tsx");
-    await writeFile(
-      browserPage,
-      (await readFile(browserPage, "utf8")) +
-        '\nimport Page from "./Page.tsx"; console.log(Page);\n',
-    );
-    const boundary = f.child(
-      [join(f.target, "packages/plugin-web/bin/cordis-web.mjs"), "build"],
-      join(f.target, "apps/app-a"),
-    );
-    assert.notEqual((await boundary.exit)[0], 0);
-    assert.match(boundary.logs(), /server-only|Server-only/);
+    for (const name of ["plugin-todos", "app-database"]) {
+      await symlink(
+        join(f.target, "packages", name),
+        join(f.target, "packages/plugin-hello-a/node_modules/@acme", name),
+        process.platform === "win32" ? "junction" : "dir",
+      );
+    }
+    const originalBrowserPage = await readFile(browserPage, "utf8");
+    for (const illegalImport of [
+      'import Page from "./Page.tsx"; console.log(Page);',
+      'import { todos } from "@acme/plugin-todos/schema"; console.log(todos);',
+      'import { todos } from "@acme/app-database"; console.log(todos);',
+    ]) {
+      await writeFile(browserPage, originalBrowserPage + "\n" + illegalImport + "\n");
+      const boundary = f.child(
+        [join(f.target, "packages/plugin-web/bin/cordis-web.mjs"), "build"],
+        join(f.target, "apps/app-a"),
+      );
+      assert.notEqual((await boundary.exit)[0], 0);
+      assert.match(boundary.logs(), /server-only|Server-only/);
+    }
   },
 );
 

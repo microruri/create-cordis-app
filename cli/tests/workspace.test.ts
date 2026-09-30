@@ -1,10 +1,17 @@
+import {
+  temporary,
+  copyTemplate,
+  linkDependencies,
+  eventually,
+  nodeProcess,
+  type Cleanup,
+} from "./helpers.ts";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createServer } from "node:http";
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { spawnSync, type ChildProcess } from "node:child_process";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripVTControlCharacters } from "node:util";
@@ -12,13 +19,6 @@ import { test, type TestContext } from "node:test";
 import { createApp } from "../template/workspace/packages/runtime/src/index.ts";
 
 const root = fileURLToPath(new URL("../template/workspace/", import.meta.url));
-const directories = [
-  "apps/app-a",
-  "apps/app-b",
-  "packages/runtime",
-  "packages/plugin-hello-a",
-  "packages/plugin-hello-b",
-];
 
 async function json(url: string, status = 200) {
   const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
@@ -28,21 +28,6 @@ async function json(url: string, status = 200) {
   return body as Record<string, unknown>;
 }
 
-async function eventually(check: () => Promise<void>, diagnostics = () => "") {
-  const deadline = Date.now() + 15000;
-  let lastError: unknown;
-  while (Date.now() < deadline) {
-    try {
-      await check();
-      return;
-    } catch (error) {
-      lastError = error;
-      await delay(100);
-    }
-  }
-  throw new Error(`Condition did not settle: ${String(lastError)}\n${diagnostics()}`);
-}
-
 async function edit(path: string, content: string) {
   // Space edits apart so the file watcher does not coalesce separate test steps.
   await delay(150);
@@ -50,45 +35,9 @@ async function edit(path: string, content: string) {
 }
 
 async function fixture(t: TestContext) {
-  const target = await mkdtemp(join(tmpdir(), "acme-workspace-"));
-  const cleanups: (() => Promise<unknown>)[] = [];
-  t.after(async () => {
-    for (const cleanup of cleanups.reverse()) await cleanup();
-    const resolved = resolve(target);
-    assert.equal(dirname(resolved), resolve(tmpdir()));
-    assert.ok(resolved.startsWith(join(resolve(tmpdir()), "acme-workspace-")));
-    await rm(resolved, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-  });
-
-  const workspace = new Map<string, string>();
-  for (const directory of directories) {
-    const source = join(root, directory);
-    const destination = join(target, directory);
-    await mkdir(destination, { recursive: true });
-    await cp(join(source, "src"), join(destination, "src"), { recursive: true });
-    await cp(join(source, "package.json"), join(destination, "package.json"));
-    if (directory.startsWith("apps/")) {
-      for (const file of ["cordis.yml", "cordis.dev.yml"]) {
-        await cp(join(source, file), join(destination, file));
-      }
-    }
-    const pkg = JSON.parse(await readFile(join(source, "package.json"), "utf8"));
-    workspace.set(pkg.name, destination);
-  }
-
-  // External dependencies stay shared; workspace dependencies point at the fixture.
-  for (const directory of directories) {
-    const source = join(root, directory);
-    const destination = join(target, directory);
-    const pkg = JSON.parse(await readFile(join(source, "package.json"), "utf8"));
-    for (const name of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })) {
-      const link = join(destination, "node_modules", name);
-      const dependency =
-        workspace.get(name) ?? (await realpath(join(source, "node_modules", name)));
-      await mkdir(dirname(link), { recursive: true });
-      await symlink(dependency, link, process.platform === "win32" ? "junction" : "dir");
-    }
-  }
+  const { target, cleanups } = await temporary(t, "acme-workspace-");
+  await copyTemplate(root, target);
+  await linkDependencies(root, target);
 
   const appRoot = (app = "app-a") => pathToFileURL(join(target, "apps", app) + "/");
   const configPath = join(target, "apps/app-a/cordis.yml");
@@ -110,28 +59,19 @@ function childEnv() {
   return env;
 }
 
-function launch(target: string, app: string, cleanups: (() => Promise<unknown>)[]) {
-  const child = spawn(
-    process.execPath,
+function launch(target: string, app: string, cleanups: Cleanup[]) {
+  const running = nodeProcess(
     ["--expose-internals", "--conditions=development", `apps/${app}/src/index.ts`, "--dev"],
-    { cwd: target, env: childEnv(), stdio: ["ignore", "pipe", "pipe"] },
+    target,
+    childEnv(),
+    cleanups,
+    false,
   );
-  let output = "";
-  child.stdout.on("data", (chunk) => {
-    output += String(chunk);
-  });
-  child.stderr.on("data", (chunk) => {
-    output += String(chunk);
-  });
-  const exited = once(child, "exit");
-  const stop = async () => {
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill();
-      await exited;
-    }
+  return {
+    child: running.process,
+    output: () => stripVTControlCharacters(running.logs()),
+    stop: running.stop,
   };
-  cleanups.push(stop);
-  return { child, output: () => stripVTControlCharacters(output), stop };
 }
 
 async function listening(process: { child: ChildProcess; output: () => string }) {

@@ -1,20 +1,9 @@
+import { temporary, copyTemplate, linkDependencies, eventually, nodeProcess } from "./helpers.ts";
 import assert from "node:assert/strict";
-import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  realpath,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 import { test, type TestContext } from "node:test";
@@ -43,64 +32,10 @@ async function pid(url: string) {
     .pid;
 }
 
-async function eventually(check: () => Promise<void>) {
-  const deadline = Date.now() + 15000;
-  let error: unknown;
-  while (Date.now() < deadline) {
-    try {
-      await check();
-      return;
-    } catch (cause) {
-      error = cause;
-    }
-    await delay(100);
-  }
-  throw error;
-}
-
 async function fixture(t: TestContext) {
-  const target = await mkdtemp(join(tmpdir(), "cca-react-spa-with spaces-"));
-  const cleanups: (() => Promise<unknown> | void)[] = [];
-  t.after(async () => {
-    for (const cleanup of cleanups.reverse()) await cleanup();
-    assert.equal(dirname(resolve(target)), resolve(tmpdir()));
-    assert.ok(basename(target).startsWith("cca-react-spa-with spaces-"));
-    await rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-  });
-  for (const file of ["package.json", "pnpm-workspace.yaml", "tsconfig.json"])
-    await cp(join(root, file), join(target, file));
-  const directories: string[] = [];
-  const workspace = new Map<string, string>();
-  for (const parent of ["apps", "packages"]) {
-    for (const entry of await readdir(join(root, parent), { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      try {
-        await readFile(join(root, parent, entry.name, "package.json"));
-      } catch {
-        continue;
-      }
-      const directory = `${parent}/${entry.name}`;
-      directories.push(directory);
-      await cp(join(root, directory), join(target, directory), {
-        recursive: true,
-        filter: (source) =>
-          !["node_modules", "dist", ".turbo", ".cordis"].includes(basename(source)) &&
-          (!basename(source).startsWith(".env") || basename(source) === ".env.example"),
-      });
-      const pkg = JSON.parse(await readFile(join(root, directory, "package.json"), "utf8"));
-      workspace.set(pkg.name, join(target, directory));
-    }
-  }
-  for (const directory of directories) {
-    const pkg = JSON.parse(await readFile(join(root, directory, "package.json"), "utf8"));
-    for (const name of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })) {
-      const link = join(target, directory, "node_modules", name);
-      const dependency =
-        workspace.get(name) ?? (await realpath(join(root, directory, "node_modules", name)));
-      await mkdir(dirname(link), { recursive: true });
-      await symlink(dependency, link, process.platform === "win32" ? "junction" : "dir");
-    }
-  }
+  const { target, cleanups } = await temporary(t, "cca-react-spa-with spaces-");
+  await copyTemplate(root, target);
+  await linkDependencies(root, target);
   for (const app of ["app-a", "app-b"]) {
     const path = join(target, "apps", app, "cordis.yml");
     const config = (await readFile(path, "utf8"))
@@ -372,38 +307,23 @@ test("react-spa development reloads YAML and backend source without restarting t
   const f = await fixture(t);
   const env = { ...process.env, NODE_OPTIONS: "", NODE_ENV: "development" };
   for (const key of ["HOST", "PORT", "GREETING"]) delete env[key as keyof typeof env];
-  const child = spawn(
-    process.execPath,
+  const running = nodeProcess(
     ["--expose-internals", "--conditions=development", "apps/app-a/src/index.ts", "--dev"],
-    {
-      cwd: f.target,
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
+    f.target,
+    env,
+    f.cleanups,
+    false,
   );
-  let logs = "";
-  child.stdout.on("data", (chunk) => {
-    logs += String(chunk);
-  });
-  child.stderr.on("data", (chunk) => {
-    logs += String(chunk);
-  });
-  const exit = once(child, "exit");
-  f.cleanups.push(async () => {
-    if (child.exitCode === null) {
-      child.kill();
-      await exit;
-    }
-  });
+  const child = running.process;
   let url = "";
   await eventually(async () => {
-    const match = logs.match(/server listening at (http:\/\/[^\s]+)/);
-    assert.ok(match, logs);
+    const match = running.logs().match(/server listening at (http:\/\/[^\s]+)/);
+    assert.ok(match, running.logs());
     url = match[1]!;
     assert.equal(await pid(url), child.pid);
     const ready = await fetch(`${url}/api/web/events`);
     await ready.body?.cancel();
-    assert.equal(ready.status, 200, logs);
+    assert.equal(ready.status, 200, running.logs());
   });
   const events = await stream(`${url}/api/web/events`, f.cleanups);
   assert.deepEqual(
@@ -442,7 +362,7 @@ test("react-spa development reloads YAML and backend source without restarting t
     (await readFile(infrastructure, "utf8")) + "\n// Infrastructure changes require a restart.\n",
   );
   await delay(400);
-  assert.doesNotMatch(logs, /reload plugin at packages[\\/]plugin-web/);
+  assert.doesNotMatch(running.logs(), /reload plugin at packages[\\/]plugin-web/);
 });
 
 test("react-spa web lifecycle includes plugins without an RPC router", async (t) => {

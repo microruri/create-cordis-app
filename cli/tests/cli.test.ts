@@ -1,22 +1,16 @@
+import { temporary } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const cli = fileURLToPath(new URL("../dist/index.js", import.meta.url));
 
 async function fixture(t: TestContext) {
-  const directory = await mkdtemp(join(tmpdir(), "cca-cli-with spaces-"));
-  t.after(async () => {
-    assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
-    assert.ok(basename(directory).startsWith("cca-cli-with spaces-"));
-    await rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-  });
-  return directory;
+  return (await temporary(t, "cca-cli-test-")).target;
 }
 
 function run(directory: string, args: string[]) {
@@ -58,8 +52,16 @@ for (const name of ["workspace", "react-spa", "react-rsc"]) {
         ? []
         : [
             "compose.yaml",
-            "drizzle/0000_create_todos.sql",
-            "drizzle/meta/_journal.json",
+            ...(name === "react-rsc"
+              ? [
+                  "packages/app-database/package.json",
+                  "packages/app-database/src/index.ts",
+                  "packages/app-database/migrations.mjs",
+                  "packages/app-database/drizzle/0000_create_todos.sql",
+                  "packages/app-database/drizzle/meta/_journal.json",
+                  "packages/plugin-todos/src/server/service.ts",
+                ]
+              : ["drizzle/0000_create_todos.sql", "drizzle/meta/_journal.json"]),
             "scripts/database.mjs",
             "packages/plugin-database/src/index.ts",
             "packages/plugin-todos/src/server/schema.ts",
