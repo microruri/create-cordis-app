@@ -45,6 +45,9 @@ export async function discover(appRoot: string, development = false) {
       if (row.group !== undefined && typeof row.group !== "boolean") {
         throw new Error(`Dynamic plugin groups are unsupported in ${filename}`);
       }
+      if (row.web !== undefined && typeof row.web !== "boolean") {
+        throw new Error(`Plugin web flags must be literal booleans in ${filename}`);
+      }
       if (row.name === "@cordisjs/plugin-include") {
         if (
           typeof row.config?.path !== "string" ||
@@ -66,6 +69,10 @@ export async function discover(appRoot: string, development = false) {
         webEnabled ||= !disabled && row.disabled !== true;
       } else {
         const require = createRequire(join(dirname(filename), "package.json"));
+        if (row.web === false) {
+          require.resolve(row.name);
+          continue;
+        }
         let module: string;
         try {
           module = require.resolve(`${row.name}/web`);

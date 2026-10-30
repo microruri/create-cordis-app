@@ -23,6 +23,9 @@ manager, and dependency versions; check installed versions before using new APIs
   through its `package.json` `database.migrations` field.
 - Frontend registration comes from each configured package's `./web` export.
   Follow the existing page manifest rather than adding an app-level page list.
+  Literal `web: false` on a plugin entry excludes its pages while retaining its
+  backend. It does not inherit through groups. Excluded pages need a rebuild
+  before enabling them in production if they were absent from the build.
 - The web host supplies providers and rendering without an application layout or
   navigation UI. Pages own their markup and spacing. `/` is blank unless an active
   plugin registers it; duplicate homepage routes are rejected like other routes.
@@ -34,6 +37,10 @@ Keep backend logic in `src/server`; page modules in `src/web` are server
 components by default. Use `"use client"` for interactive components and
 `server-only` for server page modules. Import backend types with `import type`.
 Keep database handles, Cordis contexts, and requests on the server.
+Never forward `ServerPageProps` through JSX, including to server components;
+development RSC diagnostics may serialize element props. The host uses a
+request-local closure. Follow Hello's `{Content(props)}` pattern for plain async
+rendering helpers without hooks, with Suspense around the result.
 
 Data ownership follows the plugin that declares a table. Write through the
 owning service (`ctx.todos`), which owns validation and accepts an optional
@@ -49,6 +56,19 @@ Use package exports instead of importing another package's internal files.
 The web host exposes `@acme/plugin-web/client` for `Link`, navigation hooks, and
 `HydrationBoundary`; `@acme/plugin-web/server` provides redirects and not-found
 responses, and `@acme/plugin-web/types` provides page types.
+Use `beforeRender` for decisions before streaming, throwing redirect Responses
+with their complete headers. Preserve multiple `Set-Cookie` values and explicit
+cache/referrer policies. Backend services can access original HTTP wrappers via
+`nativeRequest(request)` from `@acme/plugin-rpc/http`; use the original request,
+never a clone, and call this helper in the backend rather than a Vite page module.
+Explicit HTTP routes take precedence over pages and assets. App-local `public/`
+contains only public static content; Vite copies it to the client build.
+
+Runtime shutdown emits `app/before-close` before Cordis disposes infrastructure;
+Vite drains HMR sockets there. Keep listeners idempotent and retain scoped
+cleanup for plugin disable/reload. Do not add business-plugin signal handlers.
+After these hooks finish, the runtime closes remaining HTTP connections,
+including browser preconnections, while disposing infrastructure.
 
 The host owns the browser QueryClient and navigation/error providers. Reuse them
 in plugins. QueryClients created for server hydration belong to the current

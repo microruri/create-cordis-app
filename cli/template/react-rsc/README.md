@@ -114,6 +114,20 @@ Discovery follows literal plugin names, nested groups, and literal include paths
 in YAML or JSON. Include patches and dynamically computed plugin lists are
 unsupported. `!!js` expressions remain available for backend options.
 
+Set literal `web: false` on an individual plugin entry to exclude its `./web`
+manifest while keeping its backend services and APIs active:
+
+```yaml
+- name: "@acme/plugin-hello-a"
+  web: false
+```
+
+Omitting `web` or setting `web: true` enables normal page discovery. This flag
+belongs beside `name`, not inside `config`, and is not inherited by groups or
+includes. It differs from `disabled`, which disables the whole plugin but keeps
+its pages available to the build. A production build made with `web: false`
+must be rebuilt before that plugin's pages can be enabled.
+
 Environment files load from each app directory in this order: `.env`,
 `.env.local`, `.env.<mode>`, `.env.<mode>.local`. Later files override earlier
 ones; shell values take precedence. Dev defaults to `development`, start to
@@ -178,9 +192,7 @@ export default function Page(props: ServerPageProps) {
   return (
     <section>
       <h1>Hello</h1>
-      <Suspense fallback={<p>Loading greeting...</p>}>
-        <Content {...props} />
-      </Suspense>
+      <Suspense fallback={<p>Loading greeting...</p>}>{Content(props)}</Suspense>
     </section>
   );
 }
@@ -191,6 +203,13 @@ handlers, or TanStack Query. Pass serializable results into those components;
 keep Cordis contexts, requests, database handles, and server functions on the
 server. Use `import type` for server data and router types. `server-only`
 imports enforce component boundaries at build time.
+
+The host invokes each page through a request-local closure. Do not pass its
+`ServerPageProps` into another JSX element, even a server component: React's
+development diagnostics can serialize those element props. In the example,
+`Content` is a plain async rendering helper without hooks; `{Content(props)}`
+keeps its request context outside React element props while Suspense streams
+the result. Ordinary component props should contain only safe presentation data.
 
 The hello examples render their initial greeting on the server. `Greeting.tsx`
 only handles the name input and typed tRPC submission with `useMutation`, including
@@ -211,11 +230,22 @@ export function beforeRender({ url }: ServerPageProps) {
 }
 ```
 
-This hook runs before response headers are committed. Redirect targets are
-app-relative URLs. Errors after streaming starts cannot change the HTTP status;
+This hook runs before response headers are committed. Throw the redirect response;
+its status and all headers, including multiple `Set-Cookie` values, are preserved.
+The `redirect` helper uses app-relative targets and `Cache-Control: no-store`.
+For protocol-specific redirects, throw a `Response` with the required headers and
+cache policy. Errors after streaming starts cannot change the HTTP status;
 the page error boundary shows a generic message and the server logs the error.
 Use Suspense around slow data so the page shell can be sent first.
 `request.signal` supports cancelling data work when the browser disconnects.
+
+When a backend service needs native HTTP middleware, it can call
+`nativeRequest(request)` from `@acme/plugin-rpc/http` to get the original Cordis
+`req` and `res` wrappers (and their Node objects, `req._req` and `res._res`).
+Pass the original page or RPC `Request` into that service; synthetic requests
+and clones have no native binding. Call the helper in the backend service,
+not in a Vite-loaded page module, and never send the native objects to React.
+Explicit `ctx.server` HTTP routes take precedence over pages and static assets.
 
 Run `pnpm install` after adding workspace packages.
 
@@ -229,8 +259,9 @@ implementations are excluded from browser bundles.
 
 The host enhances same-origin page links and browser history. Navigation fetches
 the target URL with `Accept: text/x-component` and updates the existing React
-tree. The current page stays visible with a progress indicator until the next
-page commits; its Suspense boundaries handle any remaining streamed content.
+tree. The current page stays visible until the next page commits; pages can
+display progress through `useNavigation`. Their Suspense boundaries handle
+any remaining streamed content.
 Superseded requests are cancelled, history entries restore scroll positions,
 and external links, downloads, and modified clicks retain browser behavior.
 
@@ -314,7 +345,8 @@ async function Content({ cordis, request }: ServerPageProps) {
 }
 ```
 
-Keep this async component inside Suspense so the shell can stream first.
+Call this async rendering helper as `{Content(props)}` inside Suspense, as in
+the page example above, so the shell can stream first.
 Server callers execute in process with the current request; they do not make an
 HTTP request back to the app. The browser QueryClient persists across navigation.
 Hydration avoids a duplicate initial query and merges newer server data into an
@@ -344,6 +376,15 @@ current RSC tree. Page manifest, YAML, and Cordis business-plugin changes refres
 the browser. Shared runtime, RPC, database, or web-host changes require restarting
 dev. Business-plugin HMR reuses the existing database pool.
 
+The runtime emits `app/before-close` before disposing the Cordis scope. Vite
+uses it to close HMR sockets before the shared HTTP server shuts down. Plugins
+that must drain work while infrastructure is still available can listen to this
+event; keep cleanup idempotent and also register normal scoped disposal for
+plugin disable/reload. Business plugins should not add process signal handlers.
+After these hooks finish, the runtime closes remaining HTTP connections,
+including browser preconnections, while disposing services. Complete any work
+that must finish before HTTP shutdown in `app/before-close`.
+
 Vite HMR uses a development-only WebSocket on the app's HTTP port. Page rendering,
 navigation, and business RPC use HTTP. Production has no HMR connection.
 
@@ -358,6 +399,12 @@ and `dist/web/client` for each app. Generated client-reference manifests supply
 component scripts, CSS, and preload information. Production imports the RSC
 server entry without loading Vite.
 
+Place app-specific static files in `apps/<app>/public/`; `/logo.svg`, for example,
+serves that app's `public/logo.svg`. Vite serves these files during development
+and copies them into the client output when building. Only put public content
+there, never credentials or server configuration. These files use `no-cache`
+in production; reserve `/assets/` for generated, hashed build assets.
+
 Deploy the workspace layout, package manifests, production dependencies,
 backend builds, app YAML files, complete `dist/web`, and
 `dist/web-manifest.json`. These are workspace builds, not standalone bundles.
@@ -365,7 +412,7 @@ Build before installing production-only dependencies. Keep the
 `@acme/app-database` package and `scripts/database.mjs` in the migration
 environment. Building never connects to PostgreSQL.
 
-HTML and RSC responses use `Cache-Control: no-store` and `Vary: Accept`;
+Rendered HTML and RSC responses use `Cache-Control: no-store` and `Vary: Accept`;
 hashed assets use immutable caching. Missing pages return 404, except the blank `/` fallback. Missing assets
 and APIs never become page HTML. A missing build or an unbuilt frontend plugin
 prevents startup.

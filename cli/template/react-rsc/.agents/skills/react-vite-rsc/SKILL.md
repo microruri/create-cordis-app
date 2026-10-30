@@ -21,14 +21,28 @@ documents the manifest, dynamic parameters, and request-local props.
 - Keep server reads in server components; mark interactive boundaries with
   `"use client"`. Pass serializable data across the boundary. Leave server
   contexts and database code in the server graph.
+- Do not pass `ServerPageProps` through JSX, even to another server component:
+  development RSC diagnostics may serialize those props. The host uses a
+  request-local closure. Call plain async rendering helpers without hooks as
+  `{Content(props)}` inside Suspense, following Hello and Todos. Pass only safe
+  presentation data to ordinary component elements.
 - Put slow async content inside Suspense so the shell can stream first. Retain
   the request signal when the data API supports cancellation. Avoid whole-body
   buffering or waiting for all content before returning the shell.
 - Use `beforeRender` for page decisions that need an HTTP status or redirect.
+  Throw the redirect Response; its full headers, including separate cookies,
+  must survive forwarding. Custom Responses own their cache/referrer policies.
   After streaming begins, errors use the existing page boundary and server logs.
 - The RSC environment executes server components, SSR turns their output into
   HTML, and the client hydrates/interacts. Initial RSC data is embedded in HTML;
   hydration must not fetch the same page again.
+- Native middleware integrations belong in backend services. Pass the original
+  page/RPC Request to that service and use `nativeRequest` from
+  `@acme/plugin-rpc/http` there, not from a Vite-loaded module. Never clone it
+  or expose the native objects as React props. Explicit HTTP routes take
+  precedence over page and asset handling.
+- App-specific public assets live in `apps/<app>/public/` and are copied to the
+  client build. Keep secrets out; reserve `/assets/` for hashed build output.
 
 ## Navigation and development
 

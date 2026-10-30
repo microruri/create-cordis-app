@@ -31,9 +31,18 @@ it to RPC. See the
 - Use Cordis lifecycle cleanup (`ctx.effect` or service initialization cleanup)
   for subscriptions, timers, and connections. Follow the runtime's shutdown
   behavior rather than installing process signal handlers in business plugins.
+  The runtime awaits `app/before-close` before disposing infrastructure; use it
+  for draining work that needs live services (as Vite does for HMR sockets).
+  Keep this cleanup idempotent and also register scoped cleanup for reloads.
+  Remaining HTTP connections close after those hooks, including browser
+  preconnections with no request; finish required work before returning.
 - Export a server-only `./web` page manifest when adding pages. Backend-only
   plugins omit it. A frontend plugin is declared once per app; RPC IDs and page
   registrations must be unique within that app.
+- Literal `web: false` beside an individual plugin's `name` excludes only its
+  frontend manifest, keeping backend services and APIs. It is not a `config`
+  option and does not inherit through groups/includes. Pages omitted from a
+  production build require rebuilding before enabling them.
 - Declared disabled plugins remain build inputs. They expose no active page,
   API, or service until enabled; the database keeps their tables and data.
   Production configuration changes require a restart; adding a new frontend

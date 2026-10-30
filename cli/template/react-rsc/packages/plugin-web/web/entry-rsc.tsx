@@ -33,15 +33,18 @@ export async function render({ cordis, request, web }: RenderOptions): Promise<R
       const props: ServerPageProps = { cordis, request, url, params: match.params };
       await page.beforeRender?.(props);
       title = match.page.title + " | " + web.title;
-      content = <page.default {...props} />;
+      // Keep request objects and Cordis proxies out of RSC development debug payloads.
+      function PageContent() {
+        return page.default(props);
+      }
+      content = <PageContent />;
     } else if (url.pathname !== "/") throw new Response(null, { status: 404 });
   } catch (error) {
     if (request.signal.aborted) throw error;
     if (error instanceof Response) {
       const location = error.headers.get("Location");
       if (location) {
-        headers.set("Location", location);
-        return new Response(null, { status: error.status, headers });
+        return error;
       }
       status = error.status;
     } else {

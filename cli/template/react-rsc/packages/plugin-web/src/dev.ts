@@ -1,5 +1,6 @@
 import type { Context } from "cordis";
 import type {} from "@cordisjs/plugin-server";
+import type {} from "@acme/runtime";
 import { dirname, join } from "node:path";
 import { createServer, isRunnableDevEnvironment, type ViteDevServer } from "vite";
 import { discover } from "./discover.ts";
@@ -70,14 +71,19 @@ export async function development(ctx: Context, appRoot: string) {
   vite.watcher.on("change", changed);
   vite.watcher.on("unlink", changed);
   ctx.on("internal/status", refreshBrowser, { global: true });
-  ctx.effect(() => async () => {
-    stopped = true;
-    clearTimeout(timer);
-    vite.watcher.off("add", changed);
-    vite.watcher.off("change", changed);
-    vite.watcher.off("unlink", changed);
-    await pending;
-    await vite.close();
-  });
-  return { vite, entry };
+  let closing: Promise<void> | undefined;
+  const close = () =>
+    (closing ??= (async () => {
+      stopped = true;
+      clearTimeout(timer);
+      vite.watcher.off("add", changed);
+      vite.watcher.off("change", changed);
+      vite.watcher.off("unlink", changed);
+      await pending;
+      await vite.close();
+    })());
+  // Release Vite's upgraded sockets before the shared HTTP server waits for them.
+  ctx.on("app/before-close", close);
+  ctx.effect(() => close);
+  return { vite, entry, plugins: () => config.plugins };
 }

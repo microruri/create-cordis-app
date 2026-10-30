@@ -1,13 +1,38 @@
 import { parseArgs } from "node:util";
+import type { Socket } from "node:net";
 import { Context, FiberState } from "cordis";
 import Loader from "@cordisjs/plugin-loader";
 import type {} from "@cordisjs/plugin-server";
+
+declare module "cordis" {
+  interface Events {
+    /** Drain work that still needs infrastructure before Cordis disposes it. */
+    "app/before-close"(): void | Promise<void>;
+  }
+}
 
 export async function createApp(baseUrl: URL, development = false) {
   process.env.NODE_ENV ??= development ? "development" : "production";
   const ctx = new Context();
   let closing: Promise<void> | undefined;
-  const close = () => (closing ??= ctx.fiber.dispose());
+  const close = () =>
+    (closing ??= (async () => {
+      try {
+        await ctx.parallel("app/before-close");
+      } finally {
+        const server = ctx.get("server")?._http;
+        const rejectConnection = (socket: Socket) => socket.destroy();
+        // Browser preconnections have no request yet and can keep server.close pending.
+        server?.on("connection", rejectConnection);
+        try {
+          const disposing = ctx.fiber.dispose();
+          server?.closeAllConnections();
+          await disposing;
+        } finally {
+          server?.off("connection", rejectConnection);
+        }
+      }
+    })());
 
   try {
     await ctx.plugin(Loader, { baseUrl: baseUrl.href });

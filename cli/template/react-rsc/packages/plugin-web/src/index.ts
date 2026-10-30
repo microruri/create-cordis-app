@@ -13,7 +13,7 @@ import type { ReadableStream } from "node:stream/web";
 import type { Socket } from "node:net";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import sirv from "sirv";
-import { discover } from "./discover.ts";
+import { discover, type WebEntry } from "./discover.ts";
 import type { ServerEntry, WebState } from "./types.ts";
 
 export const name = "@acme/plugin-web";
@@ -32,13 +32,16 @@ export async function apply(ctx: Context, config: Config) {
   const appRoot = fileURLToPath(new URL("./", ctx.baseUrl));
   let middleware: Middleware;
   let entry: () => Promise<ServerEntry>;
+  let frontendPlugins: () => readonly WebEntry[];
   if (config.development) {
     const { development } = await import("./dev.ts");
     const dev = await development(ctx, appRoot);
     middleware = dev.vite.middlewares;
     entry = dev.entry;
+    frontendPlugins = dev.plugins;
   } else {
     const discovered = await discover(appRoot);
+    frontendPlugins = () => discovered.plugins;
     const path = join(appRoot, "dist/web/rsc/index.js");
     if (!existsSync(path)) throw new Error("Missing RSC build. Run pnpm build before pnpm start.");
     const built: string[] = JSON.parse(
@@ -63,10 +66,16 @@ export async function apply(ctx: Context, config: Config) {
     });
   }
   function snapshot(): WebState {
+    const visible = new Set(frontendPlugins().map((plugin) => plugin.name));
     return {
       title: config.title ?? "Cordis",
       activePlugins: [...ctx.loader.entries()]
-        .filter((entry) => !entry.disabled && entry.fiber?.state === FiberState.ACTIVE)
+        .filter(
+          (entry) =>
+            visible.has(entry.options.name) &&
+            !entry.disabled &&
+            entry.fiber?.state === FiberState.ACTIVE,
+        )
         .map((entry) => entry.options.name),
     };
   }
@@ -77,6 +86,16 @@ export async function apply(ctx: Context, config: Config) {
   ctx.server.use(async (req, res, next) => {
     if (!["GET", "HEAD"].includes(req.method) || /^\/(api(?:\/|$)|healthz$)/.test(req.path))
       return next();
+    // Explicit plugin HTTP routes take precedence over page rendering and static assets.
+    if (
+      [...ctx.server.httpRoutes].some(
+        (route) =>
+          "method" in route &&
+          ["all", req.method.toLowerCase()].includes(String(route.method)) &&
+          route.check(req),
+      )
+    )
+      return next();
     const socket = req._req.socket;
     if (!connections.has(socket)) {
       connections.add(socket);
@@ -84,6 +103,7 @@ export async function apply(ctx: Context, config: Config) {
     }
     let request: Request | undefined;
     const render = async () => {
+      if (res._res.destroyed) return;
       if (/\/(?:\.|assets(?:\/|$)|@)/.test(req.path)) {
         res._res.statusCode = 404;
         res._res.end();

@@ -6,12 +6,27 @@ import type { ServerPageProps } from "@acme/plugin-web/types";
 let retried = false;
 
 export function beforeRender({ url }: ServerPageProps) {
+  if (url.searchParams.has("cookies")) {
+    const headers = new Headers({
+      Location: "/hello-a",
+      "Cache-Control": "private, no-store",
+      "Referrer-Policy": "no-referrer",
+      "X-Request-Guard": "preserved",
+    });
+    headers.append("Set-Cookie", "first=one; Path=/; HttpOnly; SameSite=Lax");
+    headers.append("Set-Cookie", "second=two; Path=/; HttpOnly; SameSite=Lax");
+    throw new Response(null, { status: 303, headers });
+  }
   if (url.searchParams.has("redirect")) throw redirect({ to: "/hello-a" });
   if (url.searchParams.has("missing")) throw notFound();
   if (url.searchParams.has("failure")) throw new Error("ServerOnlySecret");
 }
 
 async function Content({ request, url, params, cordis }: ServerPageProps) {
+  if (url.searchParams.has("context")) {
+    const available = await cordis.rpc.caller("native-test", request).read();
+    return <p>Request context {available ? "available" : "missing"}</p>;
+  }
   if (url.searchParams.has("retry") && !retried) {
     retried = true;
     throw new Error("Temporary test failure");
@@ -50,9 +65,7 @@ export default function Page(props: ServerPageProps) {
   return (
     <section>
       <h1>Request shell</h1>
-      <Suspense fallback={<p>Waiting for data</p>}>
-        <Content {...props} />
-      </Suspense>
+      <Suspense fallback={<p>Waiting for data</p>}>{Content(props)}</Suspense>
     </section>
   );
 }

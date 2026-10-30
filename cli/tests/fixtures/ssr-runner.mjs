@@ -25,6 +25,10 @@ const instance = await createApp(pathToFileURL(resolve("apps", app) + "/"), deve
 const { t } = await import(
   `./packages/plugin-rpc/${development ? "src/index.ts" : "dist/index.js"}`
 );
+const { nativeRequest } = await import(
+  `./packages/plugin-rpc/${development ? "src/http.ts" : "dist/http.js"}`
+);
+assert.throws(() => nativeRequest(new Request("http://localhost/")), /unavailable/);
 const contextRouter = t.router({
   read: t.procedure.query(async ({ ctx }) => {
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -68,8 +72,22 @@ assert.equal(
 );
 let navigationValue = 0;
 await instance.ctx.plugin({
-  inject: ["rpc"],
+  inject: ["rpc", "server"],
   apply(ctx) {
+    ctx.server.all("/protocol/status", (_req, res) => res.json({ native: true }));
+    ctx.rpc.register(
+      "native-test",
+      t.router({
+        read: t.procedure.query(({ ctx: { request } }) => {
+          const { req, res } = nativeRequest(request);
+          return (
+            req.headers.get("cookie") === request.headers.get("cookie") &&
+            res._res.req === req._req &&
+            req.url === new URL(request.url).pathname + new URL(request.url).search
+          );
+        }),
+      }),
+    );
     ctx.rpc.register(
       "navigation-test",
       t.router({

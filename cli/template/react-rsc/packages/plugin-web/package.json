@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@acme/plugin-rpc": "workspace:*",
+    "@acme/runtime": "workspace:*",
     "@cordisjs/plugin-server": "catalog:",
     "@cordisjs/plugin-loader": "catalog:",
     "cordis": "catalog:",

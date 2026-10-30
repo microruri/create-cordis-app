@@ -21,7 +21,9 @@ The test command builds the CLI and discovers all `*.test.ts` files.
 - `workspace.test.ts`: HTTP routes, app environments, plugin lifecycle, and HMR.
 - `react-spa.test.ts`: RPC, frontend registration, production assets, and HMR.
 - `react-rsc.test.ts`: production and development rendering, streaming, routing,
-  request isolation, server-only boundaries, and plugin reloads.
+  request isolation, redirect cookies, native HTTP bindings/routes, app public
+  assets, server-only boundaries, page opt-outs, and plugin reloads/shutdown
+  with active HMR sockets and idle browser preconnections.
 - `navigation.test.ts`: in-memory navigation, cancellation, prefetch, and cache races.
 - `database.test.ts`: migration files, plus optional PostgreSQL integration.
 

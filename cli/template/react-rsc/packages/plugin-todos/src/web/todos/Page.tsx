@@ -26,9 +26,7 @@ export default function Page(props: ServerPageProps) {
       </p>
       <h1 className="text-3xl font-semibold my-4">Todos</h1>
       <p className="text-base-content/70">A small place to keep track of what comes next.</p>
-      <Suspense fallback={<p role="status">Loading todos...</p>}>
-        <Content {...props} />
-      </Suspense>
+      <Suspense fallback={<p role="status">Loading todos...</p>}>{Content(props)}</Suspense>
     </main>
   );
 }

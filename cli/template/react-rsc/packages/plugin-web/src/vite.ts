@@ -20,7 +20,7 @@ export function webConfig(appRoot: string, entries: () => WebEntry[]): InlineCon
       if (
         this.environment.name === "client" &&
         (serverOnly(id) ||
-          /^(?:node:|pg(?:\/|$)|drizzle-orm(?:\/|$)|@acme\/(?:plugin-database|app-database)(?:\/|$)|@acme\/plugin-[^/]+\/schema$)/.test(
+          /^(?:node:|pg(?:\/|$)|drizzle-orm(?:\/|$)|@acme\/(?:plugin-database|app-database)(?:\/|$)|@acme\/plugin-rpc\/http$|@acme\/plugin-[^/]+\/schema$)/.test(
             id,
           ))
       )
@@ -59,6 +59,7 @@ export function webConfig(appRoot: string, entries: () => WebEntry[]): InlineCon
   return {
     configFile: false,
     root: webRoot,
+    publicDir: join(appRoot, "public"),
     appType: "custom",
     cacheDir: join(appRoot, ".cordis/vite"),
     envDir: appRoot,

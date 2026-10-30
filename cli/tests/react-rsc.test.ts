@@ -4,8 +4,10 @@ import { cp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/pr
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { once } from "node:events";
+import { createConnection } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import { test, type TestContext } from "node:test";
+import { discover } from "../template/react-rsc/packages/plugin-web/src/discover.ts";
 
 const root = fileURLToPath(new URL("../template/react-rsc/", import.meta.url));
 
@@ -15,6 +17,8 @@ async function fixture(t: TestContext) {
   const directories = await linkDependencies(root, target);
   await cp(new URL("./fixtures/ssr-runner.mjs", import.meta.url), join(target, "runner.mjs"));
   for (const app of ["app-a", "app-b"]) {
+    await mkdir(join(target, "apps", app, "public"));
+    await writeFile(join(target, "apps", app, "public", "app.txt"), app);
     const path = join(target, "apps", app, "cordis.yml");
     await writeFile(
       path,
@@ -150,6 +154,58 @@ async function verifyStreaming(app: { url: string; logs: () => string }) {
   await eventually(async () => assert.match(app.logs(), /Slow component aborted/));
 }
 
+async function verifyRequestBoundaries(url: string) {
+  for (const accept of ["text/html", "text/x-component"]) {
+    const context = await fetch(url + "/request-test?context", {
+      headers: { Accept: accept, Cookie: "private-request-cookie=never-serialize" },
+    });
+    assert.equal(context.status, 200);
+    const content = await context.text();
+    assert.match(content, /Request context/);
+    assert.match(content, /available/);
+    assert.doesNotMatch(content, /private-request-cookie|never-serialize/);
+    const response = await fetch(url + "/request-test?cookies", {
+      headers: { Accept: accept },
+      redirect: "manual",
+    });
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get("location"), "/hello-a");
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+    assert.equal(response.headers.get("x-request-guard"), "preserved");
+    assert.deepEqual(response.headers.getSetCookie(), [
+      "first=one; Path=/; HttpOnly; SameSite=Lax",
+      "second=two; Path=/; HttpOnly; SameSite=Lax",
+    ]);
+  }
+  assert.deepEqual(await fetch(url + "/protocol/status").then((r) => r.json()), { native: true });
+  const head = await fetch(url + "/protocol/status", { method: "HEAD" });
+  assert.equal(head.status, 200);
+  assert.equal(await head.text(), "");
+}
+
+test("react-rsc discovers literal web opt-outs while checking backend dependencies", async (t) => {
+  const f = await fixture(t);
+  const appRoot = join(f.target, "apps/app-a");
+  const config = join(appRoot, "cordis.yml");
+  const original = await readFile(config, "utf8");
+  for (const flag of ["false", "true", '"false"', '!!js "env.WEB"']) {
+    await writeFile(
+      config,
+      original.replace("    - id: hello", `    - id: hello\n      web: ${flag}`),
+    );
+    if (flag === "false") assert.deepEqual((await discover(appRoot)).plugins, []);
+    else if (flag === "true")
+      assert.deepEqual(
+        (await discover(appRoot)).plugins.map((entry) => entry.name),
+        ["@acme/plugin-hello-a"],
+      );
+    else await assert.rejects(discover(appRoot), /web flags must be literal booleans/);
+  }
+  await writeFile(config, '- name: "@acme/missing-plugin"\n  web: false\n');
+  await assert.rejects(discover(appRoot), /Cannot find module/);
+});
+
 test(
   "react-rsc production isolates apps, streams pages, and serves HTTP without Vite",
   { timeout: 120000 },
@@ -221,12 +277,16 @@ export async function apply(ctx: Context) {
       assert.match(rsc.headers.get("content-type")!, /text\/x-component/);
       assert.match(await rsc.text(), new RegExp("Hello from app-" + suffix + "!"));
       assert.equal((await fetch(app.url + "/api/web/page?url=/")).status, 404);
+      const asset = await fetch(app.url + "/app.txt");
+      assert.equal(await asset.text(), "app-" + suffix);
+      assert.equal(asset.headers.get("cache-control"), "no-cache");
       const rpc = (await fetch(app.url + "/api/trpc/hello-" + suffix + "/hello").then((r) =>
         r.json(),
       )) as { result: { data: { app: string } } };
       assert.equal(rpc.result.data.app, "app-" + suffix);
 
       if (suffix === "a") {
+        await verifyRequestBoundaries(app.url);
         const navigationPage = () => fetch(app.url + "/navigation-test").then((r) => r.text());
         assert.match(await navigationPage(), /Query value: <!-- -->0/);
         await fetch(app.url + "/api/trpc/navigation-test/change", {
@@ -253,6 +313,8 @@ export async function apply(ctx: Context) {
         const redirect = await fetch(app.url + "/request-test?redirect", { redirect: "manual" });
         assert.equal(redirect.status, 302);
         assert.equal(redirect.headers.get("location"), "/hello-a");
+        assert.equal(redirect.headers.get("cache-control"), "no-store");
+        assert.equal(redirect.headers.get("vary"), "Accept");
         const nav = await fetch(app.url + "/request-test?redirect", {
           headers: { Accept: "text/x-component" },
         });
@@ -316,6 +378,14 @@ export async function apply(ctx: Context) {
     );
     await assertBlankHome(disabled.url);
     await disabled.close();
+    await writeFile(
+      configPath,
+      original.replace("    - id: hello", "    - id: hello\n      web: false"),
+    );
+    const backendOnly = await f.start("app-a");
+    assert.equal((await fetch(backendOnly.url + "/hello-a")).status, 404);
+    assert.equal((await fetch(backendOnly.url + "/api/trpc/hello-a/hello")).status, 200);
+    await backendOnly.close();
     await writeFile(configPath, original);
     await writeFile(join(f.target, "apps/app-a/dist/web-manifest.json"), "[]");
     const stale = f.child(["runner.mjs", "app-a", "prod"]);
@@ -350,6 +420,7 @@ export async function apply(ctx: Context) {
       'import Page from "./Page.tsx"; console.log(Page);',
       'import { todos } from "@acme/plugin-todos/schema"; console.log(todos);',
       'import { todos } from "@acme/app-database"; console.log(todos);',
+      'import { nativeRequest } from "@acme/plugin-rpc/http"; console.log(nativeRequest);',
     ]) {
       await writeFile(browserPage, originalBrowserPage + "\n" + illegalImport + "\n");
       const boundary = f.child(
@@ -369,6 +440,8 @@ test(
     const f = await fixture(t);
     await addRequestPages(f.target);
     const app = await f.start("app-a", true);
+    await verifyRequestBoundaries(app.url);
+    assert.equal(await fetch(app.url + "/app.txt").then((r) => r.text()), "app-a");
     await verifyStreaming(app);
     const page = () => fetch(app.url + "/hello-a").then((r) => r.text());
     assert.match(await page(), /Hello from app-a!/);
@@ -378,6 +451,14 @@ test(
     await once(websocket, "open");
     const config = join(f.target, "apps/app-a/cordis.yml");
     const original = await readFile(config, "utf8");
+    await writeFile(
+      config,
+      original.replace("    - id: hello", "    - id: hello\n      web: false"),
+    );
+    await eventually(async () => assert.equal((await fetch(app.url + "/hello-a")).status, 404));
+    assert.equal((await fetch(app.url + "/api/trpc/hello-a/hello")).status, 200);
+    await writeFile(config, original);
+    await eventually(async () => assert.match(await page(), /Hello from app-a!/, app.logs()));
     await writeFile(
       config,
       original.replace("    - id: hello", "    - id: hello\n      disabled: true"),
@@ -452,7 +533,15 @@ test(
     const activeSocket = new WebSocket(app.url.replace("http:", "ws:") + "/@vite/hmr", "vite-hmr");
     f.cleanups.push(() => activeSocket.close());
     await once(activeSocket, "open");
+    const address = new URL(app.url);
+    const preconnect = createConnection({ host: address.hostname, port: Number(address.port) });
+    f.cleanups.push(() => {
+      preconnect.destroy();
+    });
+    await once(preconnect, "connect");
+    const closed = once(preconnect, "close");
     await app.close();
+    await closed;
   },
 );
 
@@ -469,7 +558,10 @@ test(
     const configB = join(f.target, "apps/app-b/cordis.yml");
     await writeFile(
       configB,
-      (await readFile(configB, "utf8")).replace(/    - id: hello\r?\n[\s\S]*?(?=    - id:|$)/g, ""),
+      (await readFile(configB, "utf8")).replace(
+        "    - id: hello",
+        "    - id: hello\n      web: false",
+      ),
     );
     await f.build();
     const a = await f.start("app-a");
@@ -488,6 +580,7 @@ test(
     await disabled.close();
     const b = await f.start("app-b");
     await assertBlankHome(b.url);
+    assert.equal((await fetch(b.url + "/api/trpc/hello-b/hello")).status, 200);
     assert.equal((await fetch(b.url + "/missing")).status, 404);
     await b.close();
     const development = await f.start("app-b", true);
